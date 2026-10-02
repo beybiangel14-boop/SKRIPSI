@@ -60,3 +60,35 @@ class SegmentasiHasil(db.Model):
     cluster = db.Column(db.Integer, nullable=False) # 0, 1, 2
     segmentasi = db.Column(db.String(50), nullable=False) # 'Pelanggan Loyal', 'Pelanggan Aktif', 'Pelanggan Non Aktif'
     tanggal_perhitungan = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MlModel(db.Model):
+    """Registry model K-Means yang sudah dilatih (artefak JSON di folder models_ml/)."""
+    __tablename__ = 'ml_models'
+
+    id = db.Column(db.Integer, primary_key=True)
+    versi = db.Column(db.Integer, unique=True, nullable=False) # Versi model (model_v1, model_v2, ...)
+    file_path = db.Column(db.String(255), nullable=False) # Path artefak JSON relatif terhadap root aplikasi
+    is_active = db.Column(db.Boolean, nullable=False, default=False) # Hanya satu model aktif
+    tanggal_latih = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # Waktu training/retrain
+    n_samples = db.Column(db.Integer, nullable=False) # Jumlah pelanggan bertransaksi saat training
+    k = db.Column(db.Integer, nullable=False) # Jumlah cluster
+    silhouette = db.Column(db.Numeric(5, 4)) # Silhouette Score saat training
+    alasan = db.Column(db.String(100), nullable=False) # 'pertama_kali' / 'manual' / 'threshold'
+    threshold_snapshot = db.Column(db.Text) # JSON ambang batas retrain yang berlaku saat itu
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SegmentasiRiwayat(db.Model):
+    """Snapshot hasil clustering per pelanggan pada setiap kali model dijalankan/dilatih ulang,
+    dipakai untuk analisis migrasi segmen antar-periode."""
+    __tablename__ = 'segmentasi_riwayat'
+
+    id = db.Column(db.Integer, primary_key=True)
+    pelanggan_id = db.Column(db.Integer, db.ForeignKey('pelanggan.id', ondelete='CASCADE'), nullable=False)
+    cluster = db.Column(db.Integer, nullable=False) # 0, 1, 2
+    segmentasi = db.Column(db.String(50), nullable=False)
+    model_versi = db.Column(db.Integer, nullable=False) # Versi model yang menghasilkan snapshot ini
+    tanggal_snapshot = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # Waktu snapshot (satu batch = satu waktu)
+
+    pelanggan = db.relationship('Pelanggan', backref=db.backref('riwayat_segmentasi', cascade='all, delete-orphan', lazy=True), lazy=True)

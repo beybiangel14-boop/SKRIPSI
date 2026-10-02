@@ -428,3 +428,259 @@ def calculate_silhouette_score(X, labels):
 
     return round(sum(scores) / len(scores), 4)
 
+
+# =============================================================================
+# Lapisan model (artefak): training, skoring, dan evaluasi retrain
+# =============================================================================
+# Ambang batas retrain default (dapat ditimpa per artefak lewat parameter thresholds)
+DEFAULT_RETRAIN_THRESHOLDS = {
+    'data_baru_pct': 10.0,    # Pertambahan data (pelanggan/transaksi) >= 10% dari saat training
+    'silhouette_min': 0.35,   # Silhouette aktual di bawah 0.35 -> klaster melemah
+    'drift_pct': 10.0,        # >= 10% pelanggan di luar rentang skaler training (drift)
+    'umur_hari': 90,          # Model lebih tua dari 90 hari
+}
+
+
+def _fit_scalers_from_items(clustered_items):
+    """Fit MinMaxScaler per dimensi dari pelanggan yang memiliki transaksi."""
+    r_vals = [float(x['recency']) for x in clustered_items]
+    f_vals = [float(x['frequency']) for x in clustered_items]
+    m_vals = [float(x['monetary']) for x in clustered_items]
+    scaler_r = MinMaxScalerPure().fit(r_vals)
+    scaler_f = MinMaxScalerPure().fit(f_vals)
+    scaler_m = MinMaxScalerPure().fit(m_vals)
+    return {
+        'r': {'min': scaler_r.min_val, 'max': scaler_r.max_val},
+        'f': {'min': scaler_f.min_val, 'max': scaler_f.max_val},
+        'm': {'min': scaler_m.min_val, 'max': scaler_m.max_val},
+    }
+
+
+def _apply_scaler(value, scaler):
+    """Transform satu nilai memakai parameter scaler {'min':..,'max':..}."""
+    diff = scaler['max'] - scaler['min']
+    if diff == 0:
+        return 0.0
+    return (value - scaler['min']) / diff
+
+
+def _normalize_items(clustered_items, scaler_params):
+    """Normalisasi list pelanggan memakai parameter scaler tersimpan -> list [r, f, m]."""
+    return [
+        [
+            _apply_scaler(float(x['recency']), scaler_params['r']),
+            _apply_scaler(float(x['frequency']), scaler_params['f']),
+            _apply_scaler(float(x['monetary']), scaler_params['m']),
+        ]
+        for x in clustered_items
+    ]
+
+
+def _map_centroids(centroids):
+    """Pemetaan label K-Means -> C1 Loyal / C2 Aktif / C3 Non Aktif via kualitas sentroid.
+
+    Formula kualitas (konsisten dengan run_kmeans_only): Quality = F + M - R
+    Kualitas tertinggi -> cluster 0 (Loyal), sedang -> 1 (Aktif), terendah -> 2 (Non Aktif).
+    """
+    centroid_qualities = [
+        (i, c[1] + c[2] - c[0])  # c = [r, f, m] ternormalisasi
+        for i, c in enumerate(centroids)
+    ]
+    sorted_by_quality = sorted(centroid_qualities, key=lambda x: x[1], reverse=True)
+    labels_name = ['Pelanggan Loyal', 'Pelanggan Aktif', 'Pelanggan Non Aktif']
+    mapping = {}
+    for rank, (orig_label, _q) in enumerate(sorted_by_quality):
+        mapping[str(orig_label)] = [rank, labels_name[rank]]
+    return mapping
+
+
+def fit_model(rfm_list, k=3, alasan='manual', thresholds=None, max_iter=100):
+    """
+    Training artefak model K-Means dari data RFM.
+
+    Menghasilkan dict JSON-serializable berisi:
+      - scaler (min/max per dimensi, dari pelanggan bertransaksi)
+      - centroids (ruang ternormalisasi)
+      - mapping (label K-Means -> C1/C2/C3, formula F+M-R)
+      - metrics (Silhouette + Elbow saat training)
+      - thresholds (ambang batas retrain) & metadata
+
+    Tidak ada train/test split: K-Means unsupervised dievaluasi dengan metrik internal
+    (Silhouette, Elbow) terhadap seluruh data, sesuai kerangka KDD tahap evaluasi pola.
+    """
+    clustered_items = [x for x in rfm_list if x.get('frequency', 0) > 0]
+
+    th = dict(DEFAULT_RETRAIN_THRESHOLDS)
+    if thresholds:
+        th.update(thresholds)
+
+    from datetime import datetime as _dt
+    artifact = {
+        'created_at': _dt.utcnow().isoformat(timespec='seconds'),
+        'alasan': alasan,
+        'k': k,
+        'n_samples': len(clustered_items),
+        'n_transaksi': int(sum(x.get('frequency', 0) for x in rfm_list)),
+        'scaler': None,
+        'centroids': [],
+        'mapping': {},
+        'metrics': {'silhouette': 0.0, 'elbow': {'k_values': [], 'sse_values': [], 'optimal_k': k}},
+        'thresholds': th,
+    }
+
+    if len(clustered_items) < 2:
+        # Data terlalu sedikit untuk membentuk klaster -> artefak kosong, semua non aktif
+        artifact['empty'] = True
+        return artifact
+
+    artifact['empty'] = False
+
+    # 1. Normalisasi Min-Max (pelanggan bertransaksi saja)
+    scaler_params = _fit_scalers_from_items(clustered_items)
+    X = _normalize_items(clustered_items, scaler_params)
+
+    # 2. Fit K-Means (deterministik, reproducible)
+    n_clusters = min(k, len(X))
+    kmeans = KMeansPure(n_clusters=n_clusters, max_iter=max_iter).fit(X)
+
+    # 3. Pemetaan sentroid -> makna segmen (F + M - R)
+    mapping = _map_centroids(kmeans.centroids)
+
+    # 4. Evaluasi internal (Elbow + Silhouette) disimpan di artefak
+    silhouette = calculate_silhouette_score(X, kmeans.labels_)
+    elbow = calculate_elbow_method(rfm_list, max_k=6)
+
+    artifact['k'] = n_clusters
+    artifact['scaler'] = scaler_params
+    artifact['centroids'] = [list(map(float, c)) for c in kmeans.centroids]
+    artifact['mapping'] = mapping
+    artifact['metrics'] = {'silhouette': silhouette, 'elbow': elbow}
+
+    return artifact
+
+
+def score_with_model(rfm_list, artifact):
+    """
+    Skoring (inference): assign cluster/segmentasi memakai artefak TERSIMPAN
+    (scaler + sentroid + mapping) TANPA fitting ulang.
+
+    Recency tetap diperbarui di sini karena rfm_list sudah berisi recency terbaru
+    (dihitung dari tanggal analisis saat ini) -> skoring murah, label stabil.
+    """
+    for item in rfm_list:
+        if item.get('frequency', 0) == 0:
+            item['cluster'] = 2
+            item['segmentasi'] = 'Pelanggan Non Aktif'
+
+    if not artifact or artifact.get('empty') or not artifact.get('centroids'):
+        # Artefak kosong: pelanggan bertransaksi pun tidak bisa di-skoring
+        for item in rfm_list:
+            if item.get('frequency', 0) > 0:
+                item['cluster'] = 2
+                item['segmentasi'] = 'Pelanggan Non Aktif'
+        return rfm_list
+
+    clustered_items = [x for x in rfm_list if x.get('frequency', 0) > 0]
+    if not clustered_items:
+        return rfm_list
+
+    X = _normalize_items(clustered_items, artifact['scaler'])
+    centroids = artifact['centroids']
+    mapping = artifact['mapping']
+
+    labels = []
+    for sample in X:
+        distances = [math.sqrt(sum((a - b) ** 2 for a, b in zip(sample, c))) for c in centroids]
+        labels.append(distances.index(min(distances)))
+
+    for item, orig_label in zip(clustered_items, labels):
+        db_label, name = mapping.get(str(orig_label), [int(orig_label), 'Pelanggan Loyal'])
+        item['cluster'] = db_label
+        item['segmentasi'] = name
+
+    return rfm_list
+
+
+def check_retrain(artifact, rfm_list):
+    """
+    Evaluasi ambang batas retrain terhadap data terkini.
+
+    Mengembalikan (perlu_retrain: bool, alasan: list[str], info: dict).
+    Empat kondisi (DEFAULT_RETRAIN_THRESHOLDS):
+      1. umur model       > umur_hari
+      2. data baru        >= data_baru_pct % dari saat training (pelanggan ATAU transaksi)
+      3. silhouette aktual < silhouette_min
+      4. drift            >= drift_pct % pelanggan di luar rentang skaler training
+    """
+    if not artifact:
+        return False, [], {}
+
+    th = dict(DEFAULT_RETRAIN_THRESHOLDS)
+    th.update(artifact.get('thresholds') or {})
+
+    from datetime import datetime as _dt
+    alasan = []
+    info = {'thresholds': th}
+
+    # --- Kondisi 1: umur model ---
+    umur_hari = None
+    try:
+        created = _dt.fromisoformat(artifact.get('created_at', ''))
+        umur_hari = (_dt.utcnow() - created).days
+        info['umur_hari'] = umur_hari
+        if umur_hari > th['umur_hari']:
+            alasan.append(f"Model berumur {umur_hari} hari (lewat ambang {int(th['umur_hari'])} hari)")
+    except (ValueError, TypeError):
+        pass
+
+    clustered_items = [x for x in rfm_list if x.get('frequency', 0) > 0]
+    n_now = len(clustered_items)
+    trx_now = int(sum(x.get('frequency', 0) for x in rfm_list))
+    info['n_samples_now'] = n_now
+    info['n_transaksi_now'] = trx_now
+
+    # --- Kondisi 2: data baru sejak training ---
+    n_train = artifact.get('n_samples') or 0
+    trx_train = artifact.get('n_transaksi') or 0
+    if n_train > 0:
+        growth_p = (n_now - n_train) / n_train * 100
+        info['pertambahan_pelanggan_pct'] = round(growth_p, 2)
+        if growth_p >= th['data_baru_pct']:
+            alasan.append(f"Pelanggan bertransaksi bertambah {growth_p:.1f}% (ambang {th['data_baru_pct']}%)")
+    if trx_train > 0:
+        growth_t = (trx_now - trx_train) / trx_train * 100
+        info['pertambahan_transaksi_pct'] = round(growth_t, 2)
+        if growth_t >= th['data_baru_pct']:
+            alasan.append(f"Jumlah transaksi bertambah {growth_t:.1f}% (ambang {th['data_baru_pct']}%)")
+
+    if artifact.get('empty') or not artifact.get('centroids'):
+        alasan.append('Model belum memiliki sentroid (data training kosong)')
+        return True, alasan, info
+
+    # --- Kondisi 3 & 4: silhouette aktual dan drift (butuh X ternormalisasi) ---
+    X = _normalize_items(clustered_items, artifact['scaler']) if clustered_items else []
+
+    if X:
+        centroids = artifact['centroids']
+        labels = []
+        for sample in X:
+            distances = [math.sqrt(sum((a - b) ** 2 for a, b in zip(sample, c))) for c in centroids]
+            labels.append(distances.index(min(distances)))
+
+        sil = calculate_silhouette_score(X, labels)
+        info['silhouette_aktual'] = sil
+        if sil < th['silhouette_min']:
+            alasan.append(f"Silhouette aktual {sil:.4f} di bawah ambang {th['silhouette_min']}")
+
+        # Drift: nilai di luar rentang [0, 1] skaler training
+        n_drift = sum(
+            1 for sample in X
+            if any(v < -1e-9 or v > 1 + 1e-9 for v in sample)
+        )
+        drift_p = n_drift / len(X) * 100
+        info['drift_pct'] = round(drift_p, 2)
+        if drift_p >= th['drift_pct']:
+            alasan.append(f"{drift_p:.1f}% pelanggan di luar rentang skaler training (ambang {th['drift_pct']}%)")
+
+    return (len(alasan) > 0), alasan, info
+
