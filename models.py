@@ -63,12 +63,12 @@ class SegmentasiHasil(db.Model):
 
 
 class MlModel(db.Model):
-    """Registry model K-Means yang sudah dilatih (artefak JSON di folder models_ml/)."""
+    """Registry model K-Means yang sudah dilatih (payload di tabel ml_artifact, lihat MlArtifact)."""
     __tablename__ = 'ml_models'
 
     id = db.Column(db.Integer, primary_key=True)
     versi = db.Column(db.Integer, unique=True, nullable=False) # Versi model (model_v1, model_v2, ...)
-    file_path = db.Column(db.String(255), nullable=False) # Path artefak JSON relatif terhadap root aplikasi
+    file_path = db.Column(db.String(255), nullable=False) # Legacy: path file JSON lama ('' bila payload hanya di DB)
     is_active = db.Column(db.Boolean, nullable=False, default=False) # Hanya satu model aktif
     tanggal_latih = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # Waktu training/retrain
     n_samples = db.Column(db.Integer, nullable=False) # Jumlah pelanggan bertransaksi saat training
@@ -76,6 +76,22 @@ class MlModel(db.Model):
     silhouette = db.Column(db.Numeric(5, 4)) # Silhouette Score saat training
     alasan = db.Column(db.String(100), nullable=False) # 'pertama_kali' / 'manual' / 'threshold'
     threshold_snapshot = db.Column(db.Text) # JSON ambang batas retrain yang berlaku saat itu
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MlArtifact(db.Model):
+    """Payload artefak model (JSON) — disimpan di DATABASE, bukan file.
+
+    Alasan: filesystem hosting umumnya read-only/ephemeral sehingga file yang
+    dibuat saat runtime bisa hilang; penyimpanan DB membuat model selalu
+    tersedia selama database hidup. Tabel BARU (dibuat via db.create_all,
+    tanpa ALTER tabel mana pun). Artefak lama di folder models_ml/ tetap
+    dimuat sebagai fallback kompatibilitas mundur.
+    """
+    __tablename__ = 'ml_artifact'
+
+    versi = db.Column(db.Integer, primary_key=True) # 1:1 dengan ml_models.versi
+    artifact_json = db.Column(db.Text, nullable=False) # Payload: scaler min/max, centroid, metrics, thresholds
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 

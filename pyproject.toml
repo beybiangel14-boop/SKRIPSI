@@ -1,0 +1,38 @@
+[project]
+name = "bismillah-skripsi-safira"
+version = "0.1.0"
+description = "Sistem Segmentasi Pelanggan - RFM + K-Means (Flask)"
+readme = "README.md"
+authors = [
+    { name = "beybiangel14-boop", email = "beybiangel14@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "cryptography==49.0.0",
+    "flask==3.0.3",
+    "flask-sqlalchemy==3.1.1",
+    "fpdf2==2.8.7",
+    "pymysql==1.1.1",
+    "python-dotenv==1.2.2",
+]
+
+[dependency-groups]
+# Dependensi PENGEMBANGAN (bukan runtime sistem produksi).
+# Dipakai notebook eksperimen/evaluasi dan pengolahan dokumen skripsi.
+# Install dengan: uv sync --group dev
+dev = [
+    "matplotlib>=3.8",
+    "ipykernel>=6.29",
+    "nbformat>=5.10",
+    "nbclient>=0.10",
+    "pandas>=2.2",
+    "python-docx>=1.1",
+]
+
+[tool.uv]
+# `uv sync` (tanpa argumen) = runtime saja, TANPA grup dev — lingkup deploy.
+default-groups = []
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"

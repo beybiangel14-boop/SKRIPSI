@@ -94,7 +94,7 @@ def main():
     from utils.model_store import load_active_model
     with app.app_context():
         art, row = load_active_model()
-    check(16, "Artefak model aktif termuat dari JSON", art is not None and art.get("centroids") and row is not None,
+    check(16, "Artefak model aktif termuat (DB, fallback file lama)", art is not None and art.get("centroids") and row is not None,
           f"versi={getattr(row, 'versi', None)}")
     check(17, "Ambang batas retrain terpenuhi (sehat)", "semua ambang batas retrain" in h)
 
@@ -117,6 +117,44 @@ def main():
     h = r.get_data(as_text=True)
     check(23, "Hitung RFM: hasil segmentasi TIDAK hilang (auto-rescore)",
           "di-skoring ulang dengan Model v" in h and "Tabel Klasifikasi Segmentasi Pelanggan" in h)
+
+    # --- TC24-TC26: Artefak model disimpan di DATABASE (bukan file) ---
+    import glob as _glob
+    files_before = set(_glob.glob(str(ROOT / "models_ml" / "*.json")))
+
+    r = post("retrain")
+    h = r.get_data(as_text=True)
+    files_after = set(_glob.glob(str(ROOT / "models_ml" / "*.json")))
+    check(24, "Retrain tidak membuat file JSON baru di models_ml/",
+          "berhasil dilatih ulang" in h and files_before == files_after)
+
+    from models import MlModel, MlArtifact
+    from utils.db import db
+    with app.app_context():
+        aktif = MlModel.query.filter_by(is_active=True).order_by(MlModel.versi.desc()).first()
+        art_row = db.session.get(MlArtifact, aktif.versi) if aktif else None
+        art2, row2 = load_active_model()
+    check(25, "Payload artefak tersimpan di tabel ml_artifact",
+          art_row is not None and '"centroids"' in art_row.artifact_json,
+          f"versi={getattr(art_row, 'versi', None)}")
+    check(26, "Model aktif termuat dari database",
+          art2 is not None and art2.get("centroids") and row2 is not None and art2.get("versi") == row2.versi)
+
+    # --- TC27: Ekspor JSON opsional (untuk lampiran bukti dari notebook) ---
+    import tempfile
+    import os as _os
+    import utils.model_store as _ms
+    old_dir = _ms.MODEL_DIR
+    with tempfile.TemporaryDirectory() as td:
+        _ms.MODEL_DIR = td  # alihkan ekspor ke folder sementara agar folder proyek bersih
+        try:
+            with app.app_context():
+                art3, _row3 = _ms.load_active_model()
+                v27, _rel27 = _ms.save_model(dict(art3), alasan='manual', export_json=True)
+            ok_export = _os.path.exists(_os.path.join(td, f'model_v{v27}.json'))
+        finally:
+            _ms.MODEL_DIR = old_dir
+    check(27, "Ekspor JSON opsional (export_json=True) tetap berfungsi", ok_export)
 
     # --- Ringkasan ---
     lulus = sum(1 for x in HASIL if x[2] == "LULUS")
