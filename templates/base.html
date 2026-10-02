@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistem Segmentasi Pelanggan Agen Ikan Giling{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <!-- Custom Premium CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar Kiri -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <h1 class="brand-title">
+                    <i class="bi bi-fish-fill text-primary"></i>
+                    <span>Agen Ikan Giling</span>
+                </h1>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="{% if request.blueprint == 'dashboard' %}active{% endif %}">
+                    <a href="{{ url_for('dashboard.index') }}">
+                        <i class="bi bi-speedometer2"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                
+                <li class="{% if request.blueprint == 'pelanggan' %}active{% endif %}">
+                    <a href="{{ url_for('pelanggan.index') }}">
+                        <i class="bi bi-people"></i>
+                        <span>Data Pelanggan</span>
+                    </a>
+                </li>
+                
+                <li class="{% if request.blueprint == 'transaksi' %}active{% endif %}">
+                    <a href="{{ url_for('transaksi.index') }}">
+                        <i class="bi bi-cart-check"></i>
+                        <span>Data Transaksi</span>
+                    </a>
+                </li>
+                
+                <li class="{% if request.blueprint == 'segmentasi' %}active{% endif %}">
+                    <a href="{{ url_for('segmentasi.analisis') }}">
+                        <i class="bi bi-diagram-3-fill"></i>
+                        <span>Analisis Segmentasi</span>
+                    </a>
+                </li>
+                
+                <li class="{% if request.blueprint == 'laporan' %}active{% endif %}">
+                    <a href="{{ url_for('laporan.index') }}">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                        <span>Laporan</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div class="d-flex align-items-center justify-content-between mb-2 px-1">
+                    <span class="small text-muted">Role Logged:</span>
+                    <span class="badge bg-primary-subtle text-primary fw-semibold" style="font-size: 0.75rem;">
+                        {% if session.get('role') == 'admin' %}Operator{% else %}Owner{% endif %}
+                    </span>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger w-100 btn-sm">
+                    <i class="bi bi-box-arrow-left"></i> Logout
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Navbar Atas -->
+            <header class="main-navbar">
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-light d-lg-none me-2" id="sidebarToggle">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <h2 class="page-title">{% block page_title %}Halaman Utama{% endblock %}</h2>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="text-end d-none d-sm-block">
+                        <div class="fw-semibold text-dark">{{ session.get('username') }}</div>
+                        <small class="text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                            {% if session.get('role') == 'admin' %}Operator{% else %}Owner{% endif %}
+                        </small>
+                    </div>
+                    <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="bi bi-person-fill" style="font-size: 1.25rem;"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Body -->
+            <main class="content-body">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- JS Scripts (JQuery, Bootstrap, DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    
+    <script>
+        // Sidebar Toggler untuk Mobile
+        $(document).ready(function() {
+            $('#sidebarToggle').on('click', function() {
+                $('#sidebar').toggleClass('active');
+            });
+            
+            // Konfigurasi default DataTables Bahasa Indonesia
+            $('.datatable-init').DataTable({
+                "ordering": false,
+                "language": {
+                    "decimal": "",
+                    "emptyTable": "Tidak ada data yang tersedia pada tabel ini",
+                    "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
+                    "infoEmpty": "Menampilkan 0 sampai 0 dari 0 entri",
+                    "infoFiltered": "(disaring dari _MAX_ entri keseluruhan)",
+                    "infoPostFix": "",
+                    "thousands": ",",
+                    "lengthMenu": "Tampilkan _MENU_ entri",
+                    "loadingRecords": "Sedang memuat...",
+                    "processing": "Sedang memproses...",
+                    "search": "Cari:",
+                    "zeroRecords": "Tidak ditemukan data yang sesuai",
+                    "paginate": {
+                        "first": "Pertama",
+                        "last": "Terakhir",
+                        "next": "Selanjutnya",
+                        "previous": "Sebelumnya"
+                    },
+                    "aria": {
+                        "sortAscending": ": aktifkan untuk mengurutkan kolom ke atas",
+                        "sortDescending": ": aktifkan untuk mengurutkan kolom ke bawah"
+                    }
+                }
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

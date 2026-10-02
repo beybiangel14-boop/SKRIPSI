@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Transaksi - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}{{ action }} Transaksi{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card card-premium p-4">
+            <h5 class="card-title mb-4 border-bottom pb-2">
+                <i class="bi bi-cart-fill text-primary me-1"></i> Form {{ action }} Data Transaksi
+            </h5>
+
+            <form action="" method="POST">
+                <!-- Tanggal Transaksi -->
+                <div class="mb-3">
+                    <label for="tanggal_transaksi" class="form-label fw-semibold">Tanggal Transaksi</label>
+                    <input type="date" class="form-control" id="tanggal_transaksi" name="tanggal_transaksi"
+                        value="{{ transaksi.tanggal_transaksi.strftime('%Y-%m-%d') if transaksi else '' }}" required>
+                </div>
+
+                <!-- Pelanggan -->
+                <div class="mb-3">
+                    <label for="pelanggan_id" class="form-label fw-semibold">Pilih Pelanggan</label>
+                    <select class="form-select text-dark" id="pelanggan_id" name="pelanggan_id" required>
+                        <option value="" disabled selected>Pilih Pelanggan...</option>
+                        {% for p in pelanggan_list %}
+                        <option value="{{ p.id }}" {% if transaksi and transaksi.pelanggan_id == p.id %}selected{% endif %}>
+                            {{ p.nama_pelanggan }} (ID: {{ p.id }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="row">
+                    <!-- Jumlah (Kg) -->
+                    <div class="col-md-6 mb-3">
+                        <label for="jumlah_kg" class="form-label fw-semibold">Jumlah Volume (Kg)</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0.01" class="form-control" id="jumlah_kg"
+                                name="jumlah_kg" placeholder="Contoh: 15.5"
+                                value="{{ transaksi.jumlah_kg if transaksi else '' }}" required>
+                            <span class="input-group-text bg-light text-dark fw-bold">Kg</span>
+                        </div>
+                    </div>
+
+                    <!-- Harga per Kg -->
+                    <div class="col-md-6 mb-3">
+                        <label for="harga_per_kg" class="form-label fw-semibold">Harga per Kilogram</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-dark fw-semibold">Rp</span>
+                            <input type="number" step="1" min="1" class="form-control" id="harga_per_kg"
+                                name="harga_per_kg" placeholder="Contoh: 25000"
+                                value="{{ transaksi.harga_per_kg|int if transaksi else '' }}" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total Transaksi (Auto-calculated) -->
+                <div class="mb-3">
+                    <label for="total_transaksi_preview" class="form-label fw-semibold">Total Transaksi </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-muted">Rp</span>
+                        <input type="text" class="form-control bg-light text-dark fw-bold" id="total_transaksi_preview"
+                            readonly value="{{ '{:,.0f}'.format(transaksi.total_transaksi) if transaksi else '0' }}">
+                    </div>
+                    <div class="form-text text-primary-emphasis">Total transaksi dihitung otomatis: Jumlah (Kg) × Harga
+                        per Kg.</div>
+                </div>
+
+                <!-- Metode Pembayaran -->
+                <div class="mb-4">
+                    <label for="metode_pembayaran" class="form-label fw-semibold">Metode Pembayaran</label>
+                    <select class="form-select text-dark" id="metode_pembayaran" name="metode_pembayaran" required>
+                        <option value="" disabled selected>Pilih Metode Bayar...</option>
+                        <option value="Tunai / Cash" {% if transaksi and transaksi.metode_pembayaran == 'Tunai / Cash' %}selected{% endif %}>Tunai / Cash</option>
+                        <option value="Transfer Bank" {% if transaksi and transaksi.metode_pembayaran == 'Transfer Bank' %}selected{% endif %}>Transfer Bank</option>
+                        <option value="E-Wallet (Dana/Ovo)" {% if transaksi and transaksi.metode_pembayaran == 'E-Wallet (Dana/Ovo)' %}selected{% endif %}>E-Wallet (Dana/Ovo)</option>
+                    </select>
+                </div>
+
+                <!-- Tombol Submit & Back -->
+                <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                    <a href="{{ url_for('transaksi.index') }}" class="btn btn-light fw-semibold">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
+                    <button type="submit" class="btn btn-primary fw-semibold px-4">
+                        <i class="bi bi-check-circle-fill me-1"></i> Simpan Transaksi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const jumlahInput = document.getElementById("jumlah_kg");
+        const hargaInput = document.getElementById("harga_per_kg");
+        const totalPreview = document.getElementById("total_transaksi_preview");
+
+        // Atur tanggal default ke hari ini jika menambahkan transaksi baru
+        {% if not transaksi %}
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById("tanggal_transaksi").value = today;
+        {% endif %}
+
+        function hitungTotal() {
+            const jumlah = parseFloat(jumlahInput.value) || 0;
+            const harga = parseFloat(hargaInput.value) || 0;
+            const total = jumlah * harga;
+
+            // Format Rupiah ribuan
+            totalPreview.value = total.toLocaleString("id-ID", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+        }
+
+        jumlahInput.addEventListener("input", hitungTotal);
+        hargaInput.addEventListener("input", hitungTotal);
+    });
+</script>
+{% endblock %}

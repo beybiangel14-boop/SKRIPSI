@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Data Pelanggan - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Data Pelanggan{% endblock %}
+
+{% block content %}
+<div class="card card-premium p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold text-dark mb-1">Daftar Pelanggan Terdaftar</h5>
+            <p class="text-muted small mb-0">Kelola informasi pelanggan dan lihat riwayat transaksi belanja secara langsung.</p>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <a href="{{ url_for('pelanggan.tambah') }}" class="btn btn-primary fw-semibold">
+            <i class="bi bi-person-plus-fill me-1"></i> Tambah Pelanggan Baru
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle datatable-init border">
+            <thead class="table-light">
+                <tr>
+                    <th width="60" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="150">Nomor HP</th>
+                    <th>Alamat Lengkap</th>
+                    <th width="180" class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pelanggan_list %}
+                {% set tx_count = p.transaksi|length %}
+                {% set total_belanja = p.transaksi|sum(attribute='total_transaksi') %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ p.nama_pelanggan }}</td>
+                    <td><i class="bi bi-telephone text-muted me-1"></i> {{ p.nomor_hp }}</td>
+                    <td>{{ p.alamat }}</td>
+                    <td class="text-center">
+                        <div class="d-inline-flex gap-1">
+                            <!-- Tombol Lihat Detail & Riwayat -->
+                            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalDetail{{ p.id }}" title="Lihat Detail & Riwayat">
+                                <i class="bi bi-eye me-1"></i> Lihat
+                            </button>
+
+                            {% if session.get('role') == 'admin' %}
+                            <!-- Edit -->
+                            <a href="{{ url_for('pelanggan.edit', id=p.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit Data">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Detail & Riwayat Transaksi Pelanggan -->
+{% for p in pelanggan_list %}
+{% set tx_list = p.transaksi|sort(attribute='tanggal_transaksi', reverse=True) %}
+{% set tx_count = tx_list|length %}
+{% set total_belanja = tx_list|sum(attribute='total_transaksi') %}
+{% set tgl_terakhir = tx_list[0].tanggal_transaksi.strftime('%d-%m-%Y') if tx_count > 0 else '-' %}
+
+<div class="modal fade" id="modalDetail{{ p.id }}" tabindex="-1" aria-labelledby="modalDetailLabel{{ p.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom">
+                <h5 class="modal-header-title fw-bold text-dark mb-0" id="modalDetailLabel{{ p.id }}">
+                    <i class="bi bi-person-lines-fill text-primary me-2"></i> Detail & Riwayat Pelanggan
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- Informas Pelanggan -->
+                <div class="p-3 rounded bg-light border mb-4">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <span class="text-muted small d-block">Nama Pelanggan:</span>
+                            <strong class="text-dark fs-5">{{ p.nama_pelanggan }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted small d-block">Status Segmentasi:</span>
+                            {% if p.segmentasi and p.segmentasi.cluster != -1 %}
+                                {% if p.segmentasi.cluster == 0 %}
+                                    <span class="badge-cluster-c1">Pelanggan Loyal</span>
+                                {% elif p.segmentasi.cluster == 1 %}
+                                    <span class="badge-cluster-c2">Pelanggan Aktif</span>
+                                {% elif p.segmentasi.cluster == 2 %}
+                                    <span class="badge-cluster-c3">Pelanggan Non Aktif</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary border">Belum Dicluster</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted small d-block">Nomor HP:</span>
+                            <span class="text-dark">{{ p.nomor_hp }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted small d-block">Alamat Lengkap:</span>
+                            <span class="text-dark">{{ p.alamat }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ringkasan Transaksi -->
+                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-cash-coin me-1 text-primary"></i> Ringkasan Transaksi</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded border text-center">
+                            <span class="text-muted small d-block mb-1">Total Transaksi</span>
+                            <strong class="fs-5 text-dark">{{ tx_count }} Kali</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded border text-center">
+                            <span class="text-muted small d-block mb-1">Total Belanja</span>
+                            <strong class="fs-5 text-primary">Rp {{ "{:,.0f}".format(total_belanja) }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded border text-center">
+                            <span class="text-muted small d-block mb-1">Transaksi Terakhir</span>
+                            <strong class="fs-5 text-dark">{{ tgl_terakhir }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabel Riwayat Transaksi -->
+                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock-history me-1 text-primary"></i> Riwayat Transaksi Belanja</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle border mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="40" class="text-center">No</th>
+                                <th>Tanggal Transaksi</th>
+                                <th class="text-end">Jumlah Volume (Kg)</th>
+                                <th class="text-end">Harga / Kg</th>
+                                <th class="text-end">Total Belanja (Rp)</th>
+                                <th class="text-center">Metode</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in tx_list %}
+                            <tr>
+                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td>{{ t.tanggal_transaksi.strftime('%d-%m-%Y') }}</td>
+                                <td class="text-end fw-semibold">{{ "{:,.2f}".format(t.jumlah_kg) }} Kg</td>
+                                <td class="text-end text-muted">Rp {{ "{:,.0f}".format(t.harga_per_kg) }}</td>
+                                <td class="text-end fw-bold text-success">Rp {{ "{:,.0f}".format(t.total_transaksi) }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-dark border">{{ t.metode_pembayaran }}</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-3 text-muted">Belum ada riwayat transaksi untuk pelanggan ini.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}

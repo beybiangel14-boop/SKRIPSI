@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking Pelanggan - Leaderboard Prioritas Bisnis{% endblock %}
+
+{% block page_title %}Peringkat & Prioritas Pelanggan{% endblock %}
+
+{% block content %}
+<div class="card card-premium p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <div>
+            <h5 class="card-title mb-0">Leaderboard Prioritas Pelanggan</h5>
+            <small class="text-muted">Urutan prioritas pelanggan dihitung dari integrasi skor RFM (tertile R, F, M) dan nominal belanja (Monetary).</small>
+        </div>
+        {% if ranking_list %}
+        <a href="{{ url_for('laporan.index') }}" class="btn btn-primary fw-semibold">
+            <i class="bi bi-file-earmark-pdf-fill"></i> Cetak Laporan PDF
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not ranking_list %}
+    <div class="alert alert-warning border border-warning-subtle text-center py-5 mb-0">
+        <i class="bi bi-trophy text-warning mb-2" style="font-size: 2.5rem; display: block;"></i>
+        <h5 class="fw-bold">Belum Ada Pemeringkatan</h5>
+        <p class="text-muted mb-4" style="font-size: 0.9rem;">Sistem belum memproses perhitungan segmentasi. Silakan lakukan proses segmentasi terlebih dahulu untuk melihat ranking.</p>
+        {% if session.get('role') == 'admin' %}
+            <a href="{{ url_for('segmentasi.proses') }}" class="btn btn-primary fw-semibold">
+                <i class="bi bi-cpu-fill"></i> Jalankan Segmentasi Sekarang
+            </a>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="leaderboard-list">
+        {% for r in ranking_list %}
+        <div class="leaderboard-item d-flex align-items-center">
+            <!-- Rank Number with Medal Badge -->
+            <div class="leaderboard-rank">
+                {% if loop.index == 1 %}
+                    <span style="font-size: 1.6rem;" title="Juara 1">🥇</span>
+                {% elif loop.index == 2 %}
+                    <span style="font-size: 1.6rem;" title="Juara 2">🥈</span>
+                {% elif loop.index == 3 %}
+                    <span style="font-size: 1.6rem;" title="Juara 3">🥉</span>
+                {% else %}
+                    <span class="text-muted">#{{ loop.index }}</span>
+                {% endif %}
+            </div>
+            
+            <!-- Customer Name -->
+            <div class="leaderboard-name text-dark">
+                {{ r.nama_pelanggan }}
+            </div>
+            
+            <!-- Segment Category Badge -->
+            <div class="px-3">
+                {% if r.segmentasi == 'Pelanggan Loyal' %}
+                    <span class="badge-cluster-c1">Loyal</span>
+                {% elif r.segmentasi == 'Pelanggan Aktif' %}
+                    <span class="badge-cluster-c2">Aktif</span>
+                {% elif r.segmentasi == 'Pelanggan Non Aktif' %}
+                    <span class="badge-cluster-c3">Non Aktif</span>
+                {% endif %}
+            </div>
+            
+            <!-- Monetary Value -->
+            <div class="px-4 text-end d-none d-sm-block">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Total Pembelian</span>
+                <strong class="text-dark" style="font-size: 0.95rem;">Rp {{ "{:,.0f}".format(r.monetary) }}</strong>
+            </div>
+            
+            <!-- Score RFM Badge -->
+            <div class="text-end">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Skor RFM</span>
+                <div class="leaderboard-score">{{ "{:.2f}".format(r.score_rfm) }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="alert alert-secondary border border-light-subtle mt-4 mb-0" style="font-size: 0.85rem;">
+        <h6 class="fw-bold mb-1"><i class="bi bi-bullseye text-primary me-1"></i> Rekomendasi Penggunaan Tabel Peringkat:</h6>
+        <ul class="mb-0 ps-3">
+            <li><strong>Rank 1 - 3 (🥇, 🥈, 🥉)</strong>: Berikan prioritas pengiriman pertama saat kapasitas stok ikan giling terbatas, atau berikan bonus kemasan/potongan harga khusus.</li>
+            <li><strong>Pelanggan Loyal (C1)</strong>: Berikan diskon khusus grosir secara berkala agar mereka tidak beralih ke agen kompetitor.</li>
+            <li><strong>Pelanggan Non Aktif (C3)</strong>: Lakukan follow up atau tawarkan harga promosi perdana/penawaran khusus untuk menarik kembali minat belanja mereka.</li>
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

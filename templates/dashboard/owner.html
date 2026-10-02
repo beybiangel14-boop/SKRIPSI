@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Owner - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Dashboard Owner{% endblock %}
+
+{% block content %}
+
+<!-- Ringkasan Eksekutif Owner -->
+<div class="row g-3 mb-4">
+    <!-- Total Pelanggan -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-premium p-3 h-100">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle p-3 bg-primary-subtle text-primary">
+                    <i class="bi bi-people-fill fs-4"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold text-dark mb-0">{{ total_pelanggan }}</h4>
+                    <span class="text-muted small">Total Pelanggan</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Transaksi -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-premium p-3 h-100">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle p-3 bg-success-subtle text-success">
+                    <i class="bi bi-cart-fill fs-4"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold text-dark mb-0">{{ total_transaksi }}</h4>
+                    <span class="text-muted small">Total Transaksi</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Omzet -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-premium p-3 h-100">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle p-3 bg-warning-subtle text-warning">
+                    <i class="bi bi-wallet2 fs-4"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold text-dark mb-0">Rp {{ "{:,.0f}".format(total_omzet) }}</h5>
+                    <span class="text-muted small">Total Omzet</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jumlah Cluster -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-premium p-3 h-100">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle p-3 bg-info-subtle text-info-emphasis">
+                    <i class="bi bi-diagram-3-fill fs-4"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold text-dark mb-0">3</h4>
+                    <span class="text-muted small">Jumlah Cluster (K)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Grafik Distribusi Segmentasi Pelanggan -->
+<div class="card card-premium p-4 mb-4">
+    <h6 class="fw-bold text-dark mb-3">Distribusi Segmentasi Pelanggan</h6>
+    <div style="position: relative; height: 260px;">
+        <canvas id="distribusiOwnerChart"></canvas>
+    </div>
+</div>
+
+<!-- Tabel Ringkasan Segmentasi Pelanggan -->
+<div class="card card-premium p-4">
+    <h6 class="fw-bold text-dark mb-3">Ringkasan Segmentasi Pelanggan</h6>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle border mb-0 small">
+            <thead class="table-light">
+                <tr>
+                    <th width="60" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th>Status Segmentasi</th>
+                    <th class="text-end">Total Belanja (Rp)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if top_pelanggan %}
+                {% for p in top_pelanggan %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ p.nama_pelanggan }}</td>
+                    <td>
+                        {% if p.segmentasi == 'Pelanggan Loyal' %}
+                            <span class="badge-cluster-c1">Pelanggan Loyal</span>
+                        {% elif p.segmentasi == 'Pelanggan Aktif' %}
+                            <span class="badge-cluster-c2">Pelanggan Aktif</span>
+                        {% elif p.segmentasi == 'Pelanggan Non Aktif' %}
+                            <span class="badge-cluster-c3">Pelanggan Non Aktif</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark border">{{ p.segmentasi }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold text-primary">Rp {{ "{:,.0f}".format(p.monetary) }}</td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">Belum ada data segmentasi pelanggan.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const ctx = document.getElementById('distribusiOwnerChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Pelanggan Loyal', 'Pelanggan Aktif', 'Pelanggan Non Aktif'],
+            datasets: [{
+                label: 'Jumlah Pelanggan',
+                data: [{{ loyal_count }}, {{ aktif_count }}, {{ nonaktif_count }}],
+                backgroundColor: ['#15803d', '#b45309', '#b91c1c'],
+                borderRadius: 8,
+                barThickness: 45
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+            }
+        }
+    });
+</script>
+{% endblock %}

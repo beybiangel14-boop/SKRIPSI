@@ -1,0 +1,700 @@
+{% extends "base.html" %}
+
+{% block title %}Analisis Segmentasi - Sistem Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Analisis Segmentasi Pelanggan{% endblock %}
+
+{% block content %}
+
+{% if last_run %}
+<div class="d-flex justify-content-end mb-4">
+    <div class="badge bg-primary-subtle text-primary p-2 px-3 rounded-pill border border-primary-subtle small font-monospace">
+        <i class="bi bi-clock-history me-1"></i> Terakhir Diperbarui: {{ last_run.strftime('%d-%m-%Y %H:%M') }}
+    </div>
+</div>
+{% endif %}
+
+<!-- ========================================================================= -->
+<!-- LANGKAH 1: DATASET & FILTER WAKTU -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-1">
+    <div class="step-header">
+        <span class="step-badge">LANGKAH 1</span>
+        <h5 class="step-title">Dataset & Filter Waktu</h5>
+    </div>
+
+    <form method="GET" action="{{ url_for('segmentasi.analisis') }}" class="mb-4">
+        {% if show_elbow %}<input type="hidden" name="show_elbow" value="1">{% endif %}
+        <div class="row align-items-end g-3">
+            <div class="col-md-6">
+                <label for="periode" class="form-label fw-semibold small text-muted">Pilih Rentang Waktu Transaksi:</label>
+                <select name="periode" id="periode" class="form-select border-primary-subtle">
+                    <option value="semua" {% if periode == 'semua' %}selected{% endif %}>Semua Data Transaksi</option>
+                    <option value="30_hari" {% if periode == '30_hari' %}selected{% endif %}>30 Hari Terakhir</option>
+                    <option value="90_hari" {% if periode == '90_hari' %}selected{% endif %}>90 Hari Terakhir</option>
+                    <option value="365_hari" {% if periode == '365_hari' %}selected{% endif %}>1 Tahun Terakhir</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary fw-semibold">
+                    Terapkan & Lanjut &rarr;
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block">Jumlah Pelanggan</span>
+                    <strong class="fs-4 text-dark">{{ total_p }} Pelanggan</strong>
+                </div>
+                <div class="bg-primary-subtle text-primary p-3 rounded-circle">
+                    <i class="bi bi-people fs-4"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block">Jumlah Data Transaksi</span>
+                    <strong class="fs-4 text-dark">{{ total_t }} Transaksi</strong>
+                </div>
+                <div class="bg-success-subtle text-success p-3 rounded-circle">
+                    <i class="bi bi-cart-check fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ========================================================================= -->
+<!-- LANGKAH 2: PERHITUNGAN RFM -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-2">
+    <div class="step-header justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="step-badge">LANGKAH 2</span>
+            <h5 class="step-title">Perhitungan RFM</h5>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}">
+            <input type="hidden" name="action" value="hitung_rfm">
+            <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if total_p == 0 %}disabled{% endif %}>
+                Hitung RFM &rarr;
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Penjelasan Sangat Singkat -->
+    <div class="p-3 bg-light rounded border mb-4 small text-dark">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <strong>Recency</strong> = jarak waktu sejak transaksi terakhir.
+            </div>
+            <div class="col-md-4">
+                <strong>Frequency</strong> = jumlah transaksi.
+            </div>
+            <div class="col-md-4">
+                <strong>Monetary</strong> = total nilai transaksi.
+            </div>
+        </div>
+    </div>
+
+    {% if has_rfm %}
+    <!-- Stat Rata-rata RFM -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="text-muted small d-block mb-1">Avg Recency</span>
+                <strong class="fs-4 text-primary">{{ avg_recency }} Hari</strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="text-muted small d-block mb-1">Avg Frequency</span>
+                <strong class="fs-4 text-warning">{{ avg_frequency }} Kali</strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="text-muted small d-block mb-1">Avg Monetary</span>
+                <strong class="fs-4 text-success">Rp {{ "{:,.0f}".format(avg_monetary) }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabel Hasil Perhitungan RFM -->
+    <h6 class="fw-bold text-dark mb-3">Tabel Hasil Perhitungan RFM Pelanggan</h6>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle datatable-init border">
+            <thead class="table-light">
+                <tr>
+                    <th width="50" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="140" class="text-center">Recency (Hari)</th>
+                    <th width="140" class="text-center">Frequency (Kali)</th>
+                    <th class="text-end">Monetary (Rp)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rfm_records %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ r.pelanggan.nama_pelanggan }}</td>
+                    <td class="text-center text-primary fw-semibold">{{ r.recency }} hari</td>
+                    <td class="text-center text-warning fw-semibold">{{ r.frequency }} kali</td>
+                    <td class="text-end text-success fw-bold">Rp {{ "{:,.0f}".format(r.monetary) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-warning text-center py-4 mb-0 small">
+        Tekan tombol <strong>Hitung RFM &rarr;</strong> di atas untuk menghitung nilai Recency, Frequency, dan Monetary pelanggan.
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ========================================================================= -->
+<!-- LANGKAH 3: NORMALISASI DATA RFM (MIN-MAX NORMALIZATION) -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-3">
+    <div class="step-header">
+        <span class="step-badge">LANGKAH 3</span>
+        <h5 class="step-title">Normalisasi Data RFM (Min-Max Normalization)</h5>
+    </div>
+
+    <!-- Rumus Normalisasi -->
+    <div class="p-3 bg-light rounded border mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-primary-subtle text-primary p-2 rounded">
+                <i class="bi bi-calculator fs-4"></i>
+            </div>
+            <div>
+                <div class="badge bg-white text-primary border font-monospace px-3 py-2 small shadow-sm">
+                    x' = (x - x_min) / (x_max - x_min)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if has_rfm %}
+    <!-- Stat Range Nilai Minimum & Maksimum RFM -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border border-info-subtle">
+                <span class="text-muted small d-block mb-1">Recency (R) Min / Max</span>
+                <div class="fw-bold text-info fs-6">
+                    {{ norm_stats.r_min }} hari &nbsp;<span class="text-muted fw-normal">&rarr;</span>&nbsp; {{ norm_stats.r_max }} hari
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border border-warning-subtle">
+                <span class="text-muted small d-block mb-1">Frequency (F) Min / Max</span>
+                <div class="fw-bold text-warning-emphasis fs-6">
+                    {{ norm_stats.f_min }} kali &nbsp;<span class="text-muted fw-normal">&rarr;</span>&nbsp; {{ norm_stats.f_max }} kali
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border border-success-subtle">
+                <span class="text-muted small d-block mb-1">Monetary (M) Min / Max</span>
+                <div class="fw-bold text-success fs-6">
+                    Rp {{ "{:,.0f}".format(norm_stats.m_min) }} &nbsp;<span class="text-muted fw-normal">&rarr;</span>&nbsp; Rp {{ "{:,.0f}".format(norm_stats.m_max) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabel Hasil Normalisasi Data RFM -->
+    <h6 class="fw-bold text-dark mb-3">Tabel Hasil Normalisasi Data RFM Pelanggan</h6>
+    <div class="table-responsive mb-4">
+        <table class="table table-hover align-middle datatable-init border">
+            <thead class="table-light">
+                <tr>
+                    <th width="50" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="200" class="text-center">Recency (Asli &rarr; Norm)</th>
+                    <th width="200" class="text-center">Frequency (Asli &rarr; Norm)</th>
+                    <th width="240" class="text-center">Monetary (Asli &rarr; Norm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for norm in rfm_normalized %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ norm.nama_pelanggan }}</td>
+                    <td class="text-center">
+                        <span class="text-muted small me-2">{{ norm.recency }}h</span>
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace">{{ "{:.4f}".format(norm.r_norm) }}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="text-muted small me-2">{{ norm.frequency }}x</span>
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle font-monospace">{{ "{:.4f}".format(norm.f_norm) }}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="text-muted small me-2">Rp {{ "{:,.0f}".format(norm.monetary) }}</span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">{{ "{:.4f}".format(norm.m_norm) }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Accordion Traceability Perhitungan Normalisasi -->
+    <div class="accordion" id="accordionNormTrace">
+        <div class="accordion-item border rounded-3">
+            <h2 class="accordion-header" id="headingNormTrace">
+                <button class="accordion-button collapsed fw-semibold text-primary py-2 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNormTrace" aria-expanded="false" aria-controls="collapseNormTrace">
+                    <i class="bi bi-sliders me-2"></i> Penelusuran (Traceability) Perhitungan Normalisasi Pelanggan
+                </button>
+            </h2>
+            <div id="collapseNormTrace" class="accordion-collapse collapse" aria-labelledby="headingNormTrace" data-bs-parent="#accordionNormTrace">
+                <div class="accordion-body bg-light">
+                    <div class="mb-4 row align-items-center">
+                        <label for="selectPelangganNorm" class="col-sm-3 col-form-label fw-semibold small text-muted">Pilih Sampel Pelanggan:</label>
+                        <div class="col-sm-6">
+                            <select id="selectPelangganNorm" class="form-select form-select-sm border-primary" onchange="showNormDetail(this.value)">
+                                {% for norm in rfm_normalized %}
+                                <option value="{{ norm.pelanggan_id }}">{{ norm.nama_pelanggan }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    {% for norm in rfm_normalized %}
+                    <div class="detail-norm-box" id="detailNorm_{{ norm.pelanggan_id }}" style="display: {% if loop.first %}block{% else %}none{% endif %};">
+                        <div class="card p-3 bg-white border">
+                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Detail Substitusi Rumus: {{ norm.nama_pelanggan }}</h6>
+
+                            <div class="row g-3">
+                                <!-- Recency -->
+                                <div class="col-md-4">
+                                    <div class="card h-100 border-info border-opacity-50 shadow-sm">
+                                        <div class="card-header bg-info-subtle fw-bold text-dark small py-2">
+                                            Recency (R)
+                                        </div>
+                                        <div class="card-body small">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Nilai Asli (x):</span>
+                                                <strong class="text-dark">{{ norm.recency }} hari</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Min (xmin):</span>
+                                                <strong class="text-dark">{{ norm_stats.r_min }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span class="text-muted">Max (xmax):</span>
+                                                <strong class="text-dark">{{ norm_stats.r_max }}</strong>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="p-2 bg-light rounded font-monospace" style="font-size: 0.8rem;">
+                                                <div class="text-muted font-sans-serif mb-1">Substitusi:</div>
+                                                <div>= ({{ norm.recency }} - {{ norm_stats.r_min }}) / ({{ norm_stats.r_max }} - {{ norm_stats.r_min }})</div>
+                                                <div>= {{ norm.num_r }} / {{ norm.r_diff }}</div>
+                                                <div class="fw-bold text-info mt-1">= {{ "{:.4f}".format(norm.r_norm) }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Frequency -->
+                                <div class="col-md-4">
+                                    <div class="card h-100 border-warning border-opacity-50 shadow-sm">
+                                        <div class="card-header bg-warning-subtle fw-bold text-dark small py-2">
+                                            Frequency (F)
+                                        </div>
+                                        <div class="card-body small">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Nilai Asli (x):</span>
+                                                <strong class="text-dark">{{ norm.frequency }} kali</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Min (xmin):</span>
+                                                <strong class="text-dark">{{ norm_stats.f_min }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span class="text-muted">Max (xmax):</span>
+                                                <strong class="text-dark">{{ norm_stats.f_max }}</strong>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="p-2 bg-light rounded font-monospace" style="font-size: 0.8rem;">
+                                                <div class="text-muted font-sans-serif mb-1">Substitusi:</div>
+                                                <div>= ({{ norm.frequency }} - {{ norm_stats.f_min }}) / ({{ norm_stats.f_max }} - {{ norm_stats.f_min }})</div>
+                                                <div>= {{ norm.num_f }} / {{ norm.f_diff }}</div>
+                                                <div class="fw-bold text-warning-emphasis mt-1">= {{ "{:.4f}".format(norm.f_norm) }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Monetary -->
+                                <div class="col-md-4">
+                                    <div class="card h-100 border-success border-opacity-50 shadow-sm">
+                                        <div class="card-header bg-success-subtle fw-bold text-dark small py-2">
+                                            Monetary (M)
+                                        </div>
+                                        <div class="card-body small">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Nilai Asli (x):</span>
+                                                <strong class="text-dark">Rp {{ "{:,.0f}".format(norm.monetary) }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted">Min (xmin):</span>
+                                                <strong class="text-dark">Rp {{ "{:,.0f}".format(norm_stats.m_min) }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span class="text-muted">Max (xmax):</span>
+                                                <strong class="text-dark">Rp {{ "{:,.0f}".format(norm_stats.m_max) }}</strong>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="p-2 bg-light rounded font-monospace" style="font-size: 0.8rem;">
+                                                <div class="text-muted font-sans-serif mb-1">Substitusi:</div>
+                                                <div>= ({{ norm.monetary|int }} - {{ norm_stats.m_min|int }}) / ({{ norm_stats.m_max|int }} - {{ norm_stats.m_min|int }})</div>
+                                                <div>= {{ norm.num_m|int }} / {{ norm.m_diff|int }}</div>
+                                                <div class="fw-bold text-success mt-1">= {{ "{:.4f}".format(norm.m_norm) }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning text-center py-4 mb-0 small">
+        Data normalisasi akan ditampilkan di sini setelah perhitungan RFM dilakukan.
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ========================================================================= -->
+<!-- LANGKAH 4: ELBOW METHOD — PENENTUAN JUMLAH CLUSTER OPTIMAL -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-4">
+    <div class="step-header justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="step-badge">LANGKAH 4</span>
+            <h5 class="step-title">Elbow Method — Penentuan Jumlah Cluster Optimal</h5>
+        </div>
+        {% if session.get('role') == 'admin' and has_rfm and not show_elbow %}
+        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode) }}">
+            <input type="hidden" name="action" value="jalankan_elbow">
+            <button type="submit" class="btn btn-primary btn-sm fw-semibold">
+                Jalankan Elbow Method &rarr;
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Deskripsi Sebelum Tombol Dijalankan -->
+    <p class="text-muted small mb-4">
+        Elbow Method digunakan untuk melihat titik siku berdasarkan penurunan inertia/SSE sebagai pertimbangan dalam menentukan jumlah cluster yang optimal.
+    </p>
+
+    {% if not show_elbow %}
+    <!-- Tombol Eksekusi Jika Belum Ditekan -->
+    <div class="text-center py-4 bg-light rounded border">
+        {% if session.get('role') == 'admin' and has_rfm %}
+        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode) }}">
+            <input type="hidden" name="action" value="jalankan_elbow">
+            <button type="submit" class="btn btn-primary fw-semibold px-4 py-2">
+                <i class="bi bi-graph-up me-1"></i> Jalankan Elbow Method &rarr;
+            </button>
+        </form>
+        <span class="text-muted small d-block mt-2">Klik tombol di atas untuk menghitung inertia K=2 sampai K=6 dan melihat grafik.</span>
+        {% elif not has_rfm %}
+        <span class="text-muted small">Jalankan perhitungan RFM (Langkah 2) terlebih dahulu untuk memproses Elbow Method.</span>
+        {% else %}
+        <span class="text-muted small">Elbow Method belum dijalankan oleh Operator.</span>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- Setelah Tombol Ditekan: Tampilkan Grafik & Tabel -->
+    {% if elbow_res %}
+    <div class="row align-items-center g-4 mb-4">
+        <div class="col-md-7">
+            <div style="position: relative; height: 260px;" class="p-3 bg-white rounded border">
+                <canvas id="elbowChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="p-3 bg-primary-subtle rounded border border-primary-subtle text-primary mb-3">
+                <div class="fw-bold mb-1"><i class="bi bi-info-circle me-1"></i> Hasil Analisis Elbow:</div>
+                <div class="fs-6">Titik siku terdeteksi pada <strong>K = {{ elbow_res.optimal_k }}</strong>.</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered text-center align-middle mb-0 small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Jumlah Cluster (K)</th>
+                            <th>Inertia (SSE)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for k_val in elbow_res.k_values %}
+                        {% set sse_val = elbow_res.sse_values[loop.index0] %}
+                        <tr {% if k_val == elbow_res.optimal_k %}class="table-primary fw-bold"{% endif %}>
+                            <td>K = {{ k_val }} {% if k_val == elbow_res.optimal_k %}(Titik Siku / Optimal){% endif %}</td>
+                            <td>{{ sse_val }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collapsible Cara Membaca Grafik -->
+    <div class="accordion" id="accordionElbowInfo">
+        <div class="accordion-item border rounded-3">
+            <h2 class="accordion-header" id="headingElbow">
+                <button class="accordion-button collapsed fw-semibold text-primary py-2 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseElbow" aria-expanded="false" aria-controls="collapseElbow">
+                    <i class="bi bi-question-circle me-2"></i> Cara membaca grafik Elbow Method
+                </button>
+            </h2>
+            <div id="collapseElbow" class="accordion-collapse collapse" aria-labelledby="headingElbow" data-bs-parent="#accordionElbowInfo">
+                <div class="accordion-body bg-light text-muted small">
+                    <p class="mb-1"><strong>Langkah Membaca Grafik Elbow:</strong></p>
+                    <ol class="ps-3 mb-0" style="line-height: 1.6;">
+                        <li>Amati penurunan garis inertia (SSE) dari nilai K = 2 hingga K = 6.</li>
+                        <li>Cari titik tempat penurunan garis mulai melandai secara signifikan (membentuk lekukan siku atau <i>elbow point</i>).</li>
+                        <li>Titik siku tersebut menunjukkan jumlah cluster optimal di mana penambahan cluster berikutnya tidak lagi memberikan penurunan inertia secara berarti.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+
+<!-- ========================================================================= -->
+<!-- LANGKAH 5: CLUSTERING K-MEANS -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-5">
+    <div class="step-header justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="step-badge">LANGKAH 5</span>
+            <h5 class="step-title">Clustering K-Means</h5>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}">
+            <input type="hidden" name="action" value="jalankan_kmeans">
+            <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if not has_rfm %}disabled{% endif %}>
+                Jalankan Clustering &rarr;
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="p-3 bg-light rounded border text-center">
+                <span class="text-muted small d-block mb-1">Jumlah Cluster (K) Rekomendasi</span>
+                <strong class="fs-4 text-primary">K = {{ elbow_res.optimal_k if elbow_res else 3 }}</strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-light rounded border text-center">
+                <span class="text-muted small d-block mb-1">Silhouette Score</span>
+                <strong class="fs-4 text-success">
+                    {% if has_kmeans %}{{ silhouette_score }}{% else %}-{% endif %}
+                </strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-light rounded border text-center">
+                <span class="text-muted small d-block mb-1">Status Pengelompokan</span>
+                <strong class="fs-4 text-dark">
+                    {% if has_kmeans %}Selesai{% else %}Belum Dijalankan{% endif %}
+                </strong>
+            </div>
+        </div>
+    </div>
+
+    {% if has_kmeans %}
+    <!-- Tabel Rata-rata RFM per Cluster -->
+    <h6 class="fw-bold text-dark mb-3">Rata-rata RFM per Cluster</h6>
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered align-middle text-center small mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Cluster</th>
+                    <th>Nama Segmentasi</th>
+                    <th>Recency (Hari)</th>
+                    <th>Frequency (Kali)</th>
+                    <th>Monetary (Rp)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="fw-bold text-success">Cluster 1 (C1)</td>
+                    <td><span class="badge-cluster-c1">Pelanggan Loyal</span></td>
+                    <td class="fw-semibold">{{ cluster_means[0].r }} hari</td>
+                    <td class="fw-semibold">{{ cluster_means[0].f }} kali</td>
+                    <td class="fw-bold text-success">Rp {{ "{:,.0f}".format(cluster_means[0].m) }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-bold text-warning">Cluster 2 (C2)</td>
+                    <td><span class="badge-cluster-c2">Pelanggan Aktif</span></td>
+                    <td class="fw-semibold">{{ cluster_means[1].r }} hari</td>
+                    <td class="fw-semibold">{{ cluster_means[1].f }} kali</td>
+                    <td class="fw-bold text-warning">Rp {{ "{:,.0f}".format(cluster_means[1].m) }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-bold text-danger">Cluster 3 (C3)</td>
+                    <td><span class="badge-cluster-c3">Pelanggan Non Aktif</span></td>
+                    <td class="fw-semibold">{{ cluster_means[2].r }} hari</td>
+                    <td class="fw-semibold">{{ cluster_means[2].f }} kali</td>
+                    <td class="fw-bold text-danger">Rp {{ "{:,.0f}".format(cluster_means[2].m) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-warning text-center py-4 mb-0 small">
+        Klik tombol <strong>Jalankan Clustering &rarr;</strong> di atas untuk mengelompokkan pelanggan.
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ========================================================================= -->
+<!-- HASIL SEGMENTASI (DITAMPILKAN DI BAGIAN BAWAH) -->
+<!-- ========================================================================= -->
+<div class="card card-premium p-4 mb-4" id="step-6">
+    <div class="step-header">
+        <span class="step-badge">HASIL</span>
+        <h5 class="step-title">Hasil Segmentasi Pelanggan</h5>
+    </div>
+
+    {% if has_kmeans %}
+    <!-- Stat Distribusi Segmen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="badge-cluster-c1 d-inline-block mb-2">Pelanggan Loyal</span>
+                <h4 class="fw-bold text-dark mb-0">{{ loyal_count }} Orang</h4>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="badge-cluster-c2 d-inline-block mb-2">Pelanggan Aktif</span>
+                <h4 class="fw-bold text-dark mb-0">{{ aktif_count }} Orang</h4>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-white rounded border text-center">
+                <span class="badge-cluster-c3 d-inline-block mb-2">Pelanggan Non Aktif</span>
+                <h4 class="fw-bold text-dark mb-0">{{ nonaktif_count }} Orang</h4>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabel Hasil Segmentasi Pelanggan -->
+    <h6 class="fw-bold text-dark mb-3">Tabel Klasifikasi Segmentasi Pelanggan</h6>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle datatable-init border">
+            <thead class="table-light">
+                <tr>
+                    <th width="50" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="120" class="text-center">Recency</th>
+                    <th width="120" class="text-center">Frequency</th>
+                    <th class="text-end">Monetary</th>
+                    <th width="100" class="text-center">Cluster</th>
+                    <th width="180" class="text-center">Status Segmentasi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rfm_records %}
+                {% if r.cluster != -1 %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ r.pelanggan.nama_pelanggan }}</td>
+                    <td class="text-center text-muted">{{ r.recency }} hari</td>
+                    <td class="text-center text-muted">{{ r.frequency }} kali</td>
+                    <td class="text-end text-dark">Rp {{ "{:,.0f}".format(r.monetary) }}</td>
+                    <td class="text-center fw-bold text-primary">C{{ r.cluster + 1 }}</td>
+                    <td class="text-center">
+                        {% if r.cluster == 0 %}
+                            <span class="badge-cluster-c1">Pelanggan Loyal</span>
+                        {% elif r.cluster == 1 %}
+                            <span class="badge-cluster-c2">Pelanggan Aktif</span>
+                        {% elif r.cluster == 2 %}
+                            <span class="badge-cluster-c3">Pelanggan Non Aktif</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary text-center py-4 mb-0 small">
+        Hasil segmentasi pelanggan akan ditampilkan di sini setelah proses K-Means dijalankan.
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showNormDetail(id) {
+        document.querySelectorAll('.detail-norm-box').forEach(el => el.style.display = 'none');
+        const selected = document.getElementById('detailNorm_' + id);
+        if (selected) selected.style.display = 'block';
+    }
+
+    // Chart.js untuk Elbow Method jika diset tampilkan
+    {% if show_elbow and elbow_res %}
+    const ctxElbow = document.getElementById('elbowChart');
+    if (ctxElbow) {
+        new Chart(ctxElbow.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ elbow_res.k_values | tojson }},
+                datasets: [{
+                    label: 'Inertia (SSE)',
+                    data: {{ elbow_res.sse_values | tojson }},
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#7c3aed',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { title: { display: true, text: 'Jumlah Cluster (K)' } },
+                    y: { title: { display: true, text: 'Inertia (SSE)' }, beginAtZero: false }
+                }
+            }
+        });
+    }
+    {% endif %}
+</script>
+{% endblock %}

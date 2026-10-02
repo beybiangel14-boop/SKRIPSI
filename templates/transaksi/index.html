@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Data Transaksi - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Data Transaksi{% endblock %}
+
+{% block content %}
+<div class="card card-premium p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="card-title fw-bold text-dark mb-1">Daftar Data Transaksi Penjualan</h5>
+            <p class="text-muted small mb-0">Seluruh riwayat transaksi transaksi pembelian pelanggan agen ikan giling.</p>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <a href="{{ url_for('transaksi.tambah') }}" class="btn btn-primary fw-semibold">
+            <i class="bi bi-cart-plus-fill me-1"></i> Catat Transaksi Baru
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle datatable-init border">
+            <thead class="table-light">
+                <tr>
+                    <th width="50" class="text-center">No</th>
+                    <th width="120">Tanggal</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="120" class="text-end">Volume (Kg)</th>
+                    <th width="130" class="text-end">Harga/Kg</th>
+                    <th width="150" class="text-end">Total Belanja</th>
+                    <th width="140" class="text-center">Metode Pembayaran</th>
+                    {% if session.get('role') == 'admin' %}
+                    <th width="120" class="text-center">Aksi</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transaksi_list %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-semibold text-dark">{{ t.tanggal_transaksi.strftime('%d-%m-%Y') }}</td>
+                    <td class="fw-bold text-dark">{{ t.pelanggan.nama_pelanggan }}</td>
+                    <td class="text-end text-success fw-bold">{{ "{:,.2f}".format(t.jumlah_kg) }} Kg</td>
+                    <td class="text-end text-muted">Rp {{ "{:,.0f}".format(t.harga_per_kg) }}</td>
+                    <td class="text-end fw-bold text-primary">Rp {{ "{:,.0f}".format(t.total_transaksi) }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark border">
+                            {{ t.metode_pembayaran }}
+                        </span>
+                    </td>
+                    {% if session.get('role') == 'admin' %}
+                    <td class="text-center">
+                        <div class="d-inline-flex gap-1">
+                            <a href="{{ url_for('transaksi.edit', id=t.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit Transaksi">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <form action="{{ url_for('transaksi.hapus', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data transaksi ini?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus Transaksi">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Proses Clustering - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Proses Clustering{% endblock %}
+
+{% block content %}
+
+<!-- Card Proses Clustering -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h6 class="fw-bold mb-3">Proses Clustering K-Means</h6>
+
+        <!-- Informasi singkat model -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="p-3 bg-light rounded border text-center">
+                    <div class="text-muted small">Jumlah Cluster</div>
+                    <div class="fw-bold fs-5">3</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-light rounded border text-center">
+                    <div class="text-muted small">Model</div>
+                    <div class="fw-bold fs-5">K-Means</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-light rounded border text-center">
+                    <div class="text-muted small">Data RFM Tersedia</div>
+                    <div class="fw-bold fs-5">{{ total_rfm }} Pelanggan</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Peringatan jika data RFM belum ada -->
+        {% if total_rfm == 0 %}
+        <div class="alert alert-warning mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            Data RFM belum tersedia. Silakan lakukan
+            <a href="{{ url_for('segmentasi.rfm') }}">Perhitungan RFM</a> terlebih dahulu.
+        </div>
+        {% endif %}
+
+        <!-- Keterangan waktu terakhir clustering -->
+        {% if has_run_kmeans and last_run %}
+        <p class="text-muted small mb-3">
+            <i class="bi bi-clock-history"></i>
+            Clustering terakhir dijalankan: <strong>{{ last_run.strftime('%d-%m-%Y %H:%M') }}</strong>
+        </p>
+        {% endif %}
+
+        <!-- Form Tombol Clustering -->
+        <form action="" method="POST" id="prosesForm">
+            <button type="submit" class="btn btn-primary fw-semibold"
+                {% if total_rfm == 0 %}disabled{% endif %}>
+                <i class="bi bi-play-circle me-1"></i>
+                {% if has_run_kmeans %}Jalankan Ulang Clustering{% else %}Jalankan Clustering{% endif %}
+            </button>
+        </form>
+
+    </div>
+</div>
+
+<!-- Tombol ke Hasil Segmentasi (muncul jika sudah pernah dijalankan) -->
+{% if has_run_kmeans %}
+<div class="card">
+    <div class="card-body">
+        <div class="alert alert-success mb-3">
+            <i class="bi bi-check-circle-fill me-1"></i>
+            Proses Clustering Berhasil. Data segmentasi sudah tersimpan.
+        </div>
+        <a href="{{ url_for('segmentasi.hasil') }}" class="btn btn-success fw-semibold">
+            <i class="bi bi-table me-1"></i> Lihat Hasil Segmentasi
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tampilkan loading saat form disubmit
+    document.getElementById('prosesForm').addEventListener('submit', function() {
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Memproses K-Means...';
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Detail Riwayat Pelanggan - {{ pelanggan.nama_pelanggan }}{% endblock %}
+
+{% block page_title %}Profil & Riwayat Belanja Pelanggan{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Panel Profil Pelanggan -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-premium p-4 h-100">
+            <h5 class="card-title mb-4 border-bottom pb-2">
+                <i class="bi bi-person-bounding-box text-primary me-1"></i> Profil Pelanggan
+            </h5>
+            
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 64px; height: 64px;">
+                    <i class="bi bi-person" style="font-size: 2rem;"></i>
+                </div>
+                <div>
+                    <h4 class="mb-0 text-dark">{{ pelanggan.nama_pelanggan }}</h4>
+                    <span class="text-muted" style="font-size: 0.9rem;">ID Pelanggan: #{{ pelanggan.id }}</span>
+                </div>
+            </div>
+            
+            <table class="table table-borderless align-middle mb-3">
+                <tr>
+                    <td width="130" class="fw-semibold text-muted py-1.5"><i class="bi bi-telephone me-2"></i> Nomor HP</td>
+                    <td class="text-dark py-1.5">: {{ pelanggan.nomor_hp }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold text-muted py-1.5"><i class="bi bi-geo-alt me-2"></i> Alamat</td>
+                    <td class="text-dark py-1.5">: {{ pelanggan.alamat }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold text-muted py-1.5"><i class="bi bi-calendar-check me-2"></i> Terdaftar</td>
+                    <td class="text-dark py-1.5">: {{ pelanggan.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold text-muted py-1.5"><i class="bi bi-diagram-3 me-2"></i> Status Cluster</td>
+                    <td class="py-1.5">: 
+                        {% if segmentasi and segmentasi.cluster != -1 %}
+                            {% if segmentasi.cluster == 0 %}
+                                <span class="badge-cluster-c1">Pelanggan Loyal (C1)</span>
+                            {% elif segmentasi.cluster == 1 %}
+                                <span class="badge-cluster-c2">Pelanggan Aktif (C2)</span>
+                            {% elif segmentasi.cluster == 2 %}
+                                <span class="badge-cluster-c3">Pelanggan Non-Aktif (C3)</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary">Belum Tersegmentasi</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Panel Ringkasan Belanja -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-premium p-4 h-100">
+            <h5 class="card-title mb-4 border-bottom pb-2">
+                <i class="bi bi-cash-coin text-primary me-1"></i> Ringkasan Belanja
+            </h5>
+            
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded border border-light-subtle text-center">
+                        <span class="text-muted d-block mb-1" style="font-size: 0.85rem;">Total Transaksi</span>
+                        <h4 class="fw-bold text-dark mb-0">{{ total_transaksi }} Kali</h4>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded border border-light-subtle text-center">
+                        <span class="text-muted d-block mb-1" style="font-size: 0.85rem;">Total Belanja</span>
+                        <h4 class="fw-bold text-primary mb-0">Rp {{ "{:,.0f}".format(total_pembelian) }}</h4>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded border border-light-subtle text-center">
+                        <span class="text-muted d-block mb-1" style="font-size: 0.85rem;">Total Volume Ikan</span>
+                        <h4 class="fw-bold text-success mb-0">{{ "{:,.2f}".format(total_kg) }} Kg</h4>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded border border-light-subtle text-center">
+                        <span class="text-muted d-block mb-1" style="font-size: 0.85rem;">Skor RFM</span>
+                        <h4 class="fw-bold text-warning mb-0">{{ "{:.2f}".format(segmentasi.score_rfm) if segmentasi else '-' }}</h4>
+                    </div>
+                </div>
+            </div>
+            
+            {% if segmentasi %}
+            <div class="mt-4 p-3 rounded bg-light border border-light-subtle">
+                <h6 class="fw-bold mb-1" style="font-size: 0.9rem;"><i class="bi bi-info-circle text-info me-1"></i> Rincian Nilai RFM:</h6>
+                <div class="d-flex justify-content-around text-center mt-2" style="font-size: 0.85rem;">
+                    <div>
+                        <span class="text-muted d-block">Recency (Hari)</span>
+                        <strong class="text-dark">{{ segmentasi.recency }} hari</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted d-block">Frequency (Transaksi)</span>
+                        <strong class="text-dark">{{ segmentasi.frequency }} kali</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted d-block">Monetary (Pembelian)</span>
+                        <strong class="text-dark">Rp {{ "{:,.0f}".format(segmentasi.monetary) }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Tabel Riwayat Transaksi -->
+    <div class="col-12 mb-4">
+        <div class="card card-premium p-4">
+            <h5 class="card-title mb-4 border-bottom pb-2">
+                <i class="bi bi-clock-history text-primary me-1"></i> Riwayat Transaksi Historis
+            </h5>
+            
+            <div class="table-responsive">
+                <table class="table table-hover align-middle datatable-init">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="50" class="text-center">No</th>
+                            <th>Tanggal Transaksi</th>
+                            <th class="text-end">Jumlah Volume (Kg)</th>
+                            <th class="text-end">Harga per Kg</th>
+                            <th class="text-end">Total Belanja</th>
+                            <th class="text-center">Metode Pembayaran</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in transaksi_list %}
+                        <tr>
+                            <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                            <td class="fw-semibold text-dark">{{ t.tanggal_transaksi.strftime('%d-%m-%Y') }}</td>
+                            <td class="text-end fw-bold text-success">{{ "{:,.2f}".format(t.jumlah_kg) }} Kg</td>
+                            <td class="text-end">Rp {{ "{:,.0f}".format(t.harga_per_kg) }}</td>
+                            <td class="text-end fw-bold">Rp {{ "{:,.0f}".format(t.total_transaksi) }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary-subtle text-secondary px-3 py-2 border border-secondary-subtle">
+                                    {{ t.metode_pembayaran }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">Belum ada riwayat transaksi untuk pelanggan ini.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

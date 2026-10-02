@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Pelanggan - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}{{ action }} Pelanggan{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card card-premium p-4">
+            <h5 class="card-title mb-4 border-bottom pb-2">
+                <i class="bi bi-person-fill text-primary me-1"></i> Form {{ action }} Data Pelanggan
+            </h5>
+            
+            <form action="" method="POST">
+                <!-- Nama Pelanggan -->
+                <div class="mb-3">
+                    <label for="nama_pelanggan" class="form-label fw-semibold">Nama Lengkap Pelanggan</label>
+                    <input type="text" class="form-control" id="nama_pelanggan" name="nama_pelanggan" 
+                           placeholder="Masukkan nama lengkap pelanggan" 
+                           value="{{ pelanggan.nama_pelanggan if pelanggan else '' }}" required>
+                </div>
+                
+                <!-- Nomor HP -->
+                <div class="mb-3">
+                    <label for="nomor_hp" class="form-label fw-semibold">Nomor Handphone (WhatsApp)</label>
+                    <input type="text" class="form-control" id="nomor_hp" name="nomor_hp" 
+                           placeholder="Contoh: 08123456789" 
+                           value="{{ pelanggan.nomor_hp if pelanggan else '' }}" required>
+                    <div class="form-text">Pastikan nomor handphone aktif untuk koordinasi pengiriman ikan giling.</div>
+                </div>
+                
+                <!-- Alamat -->
+                <div class="mb-4">
+                    <label for="alamat" class="form-label fw-semibold">Alamat Rumah / Usaha</label>
+                    <textarea class="form-control" id="alamat" name="alamat" rows="4" 
+                              placeholder="Masukkan alamat lengkap pengiriman" required>{{ pelanggan.alamat if pelanggan else '' }}</textarea>
+                </div>
+                
+                <!-- Tombol Submit & Back -->
+                <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                    <a href="{{ url_for('pelanggan.index') }}" class="btn btn-light fw-semibold">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
+                    <button type="submit" class="btn btn-primary fw-semibold px-4">
+                        <i class="bi bi-check-circle-fill me-1"></i> Simpan Data Pelanggan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

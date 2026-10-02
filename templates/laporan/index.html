@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Laporan Hasil Segmentasi Pelanggan - Agen Ikan Giling{% endblock %}
+
+{% block page_title %}Laporan Hasil Segmentasi{% endblock %}
+
+{% block content %}
+
+<!-- Tombol Aksi Toolbar (Disembunyikan saat cetak) -->
+<div class="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold text-dark mb-0">Laporan Hasil Analisis Segmentasi</h5>
+        <small class="text-muted">Pratinjau laporan resmi untuk Operator dan Owner</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button onclick="window.print()" class="btn btn-primary fw-semibold shadow-sm">
+            <i class="bi bi-printer-fill me-1"></i> Cetak Laporan
+        </button>
+        <a href="{{ url_for('laporan.segmentasi_pdf') }}" target="_blank" class="btn btn-outline-primary fw-semibold shadow-sm {% if not has_segmentasi %}disabled{% endif %}">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Unduh PDF
+        </a>
+    </div>
+</div>
+
+<!-- Lembar Dokumen Laporan (Model Kertas Formal) -->
+<div class="card border-0 shadow-sm p-4 p-md-5 report-sheet mb-4">
+    
+    <!-- Header Laporan -->
+    <div class="text-center mb-2">
+        <h4 class="fw-bold text-dark mb-1 text-uppercase" style="letter-spacing: 0.5px;">
+            LAPORAN HASIL SEGMENTASI PELANGGAN
+        </h4>
+        <p class="text-secondary mb-0" style="font-size: 0.95rem;">
+            Sistem Informasi Segmentasi Pelanggan Toko Agen Ikan Giling
+        </p>
+    </div>
+
+    <!-- Garis Pemisah Header -->
+    <hr class="report-divider">
+
+    <!-- Metadata Ringkasan (Key - Value Aligned) -->
+    <div class="row mb-4">
+        <div class="col-lg-8 col-md-10">
+            <table class="table table-sm table-borderless meta-table mb-0">
+                <tbody>
+                    <tr>
+                        <td class="meta-label">Periode Data Transaksi</td>
+                        <td class="meta-sep">:</td>
+                        <td class="meta-val">Semua Riwayat Transaksi</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">Tanggal Cetak</td>
+                        <td class="meta-sep">:</td>
+                        <td class="meta-val">{{ tgl_cetak }}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">Total Pelanggan</td>
+                        <td class="meta-sep">:</td>
+                        <td class="meta-val">{{ total_pelanggan }} Orang</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">Total Transaksi</td>
+                        <td class="meta-sep">:</td>
+                        <td class="meta-val">{{ total_transaksi }} Transaksi</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">Total Omzet Penjualan</td>
+                        <td class="meta-sep">:</td>
+                        <td class="meta-val">Rp {{ "{:,.0f}".format(total_omzet) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if has_segmentasi %}
+    <!-- Bagian 1: Ringkasan Klaster Pelanggan -->
+    <div class="report-section-bar mb-3">
+        Bagian 1: Ringkasan Klaster Pelanggan
+    </div>
+
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered align-middle text-center small mb-0 report-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">Cluster</th>
+                    <th style="width: 21%;">Status Segmentasi</th>
+                    <th style="width: 18%;">Rata-rata Recency</th>
+                    <th style="width: 18%;">Rata-rata Frequency</th>
+                    <th style="width: 18%;">Rata-rata Monetary</th>
+                    <th style="width: 10%;">Jumlah</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="fw-bold text-success">Cluster 1 (C1)</td>
+                    <td><span class="badge-cluster-c1">Pelanggan Loyal</span></td>
+                    <td>{{ cluster_means[0].r }} hari</td>
+                    <td>{{ cluster_means[0].f }} kali</td>
+                    <td class="fw-semibold">Rp {{ "{:,.0f}".format(cluster_means[0].m) }}</td>
+                    <td class="fw-bold">{{ loyal_count }} Orang</td>
+                </tr>
+                <tr>
+                    <td class="fw-bold text-warning-emphasis">Cluster 2 (C2)</td>
+                    <td><span class="badge-cluster-c2">Pelanggan Aktif</span></td>
+                    <td>{{ cluster_means[1].r }} hari</td>
+                    <td>{{ cluster_means[1].f }} kali</td>
+                    <td class="fw-semibold">Rp {{ "{:,.0f}".format(cluster_means[1].m) }}</td>
+                    <td class="fw-bold">{{ aktif_count }} Orang</td>
+                </tr>
+                <tr>
+                    <td class="fw-bold text-danger">Cluster 3 (C3)</td>
+                    <td><span class="badge-cluster-c3">Pelanggan Non Aktif</span></td>
+                    <td>{{ cluster_means[2].r }} hari</td>
+                    <td>{{ cluster_means[2].f }} kali</td>
+                    <td class="fw-semibold">Rp {{ "{:,.0f}".format(cluster_means[2].m) }}</td>
+                    <td class="fw-bold">{{ nonaktif_count }} Orang</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Bagian 2: Hasil Segmentasi Pelanggan -->
+    <div class="report-section-bar mb-3">
+        Bagian 2: Hasil Segmentasi & Pengelompokan Pelanggan
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle small mb-0 report-table">
+            <thead>
+                <tr>
+                    <th class="text-center" style="width: 5%;">No</th>
+                    <th style="width: 25%;">Nama Pelanggan</th>
+                    <th class="text-center" style="width: 13%;">Recency</th>
+                    <th class="text-center" style="width: 13%;">Frequency</th>
+                    <th class="text-end" style="width: 18%;">Total Belanja</th>
+                    <th class="text-center" style="width: 10%;">Cluster</th>
+                    <th class="text-center" style="width: 16%;">Status Segmentasi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in hasil_list %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ h.nama_pelanggan }}</td>
+                    <td class="text-center">{{ h.recency }} hari</td>
+                    <td class="text-center">{{ h.frequency }} kali</td>
+                    <td class="text-end fw-semibold">Rp {{ "{:,.0f}".format(h.monetary) }}</td>
+                    <td class="text-center fw-bold">C{{ h.cluster + 1 }}</td>
+                    <td class="text-center">
+                        {% if h.segmentasi == 'Pelanggan Loyal' %}
+                            <span class="badge-cluster-c1">Pelanggan Loyal</span>
+                        {% elif h.segmentasi == 'Pelanggan Aktif' %}
+                            <span class="badge-cluster-c2">Pelanggan Aktif</span>
+                        {% elif h.segmentasi == 'Pelanggan Non Aktif' %}
+                            <span class="badge-cluster-c3">Pelanggan Non Aktif</span>
+                        {% else %}
+                            {{ h.segmentasi }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+    <div class="alert alert-warning text-center py-4 mb-0">
+        <i class="bi bi-exclamation-circle fs-3 d-block mb-2 text-warning"></i>
+        <h6 class="fw-bold mb-1">Data Segmentasi Belum Dihitung</h6>
+        <p class="text-muted small mb-0">Silakan jalankan proses analisis segmentasi pelanggan terlebih dahulu untuk memuat data laporan.</p>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Styling Khusus Lembar Laporan & Cetak -->
+<style>
+    .report-sheet {
+        background-color: #ffffff;
+        border-radius: 8px;
+    }
+
+    .report-divider {
+        border-top: 2px solid #212529;
+        margin-top: 0.75rem;
+        margin-bottom: 1.5rem;
+        opacity: 1;
+    }
+
+    .meta-table {
+        font-size: 0.88rem;
+    }
+
+    .meta-label {
+        width: 210px;
+        color: #495057;
+        font-weight: 500;
+        padding: 2px 0 !important;
+    }
+
+    .meta-sep {
+        width: 15px;
+        color: #212529;
+        font-weight: 600;
+        padding: 2px 0 !important;
+    }
+
+    .meta-val {
+        color: #212529;
+        font-weight: 600;
+        padding: 2px 0 !important;
+    }
+
+    /* Section Bar bergaya aksen biru sesuai gambar referensi */
+    .report-section-bar {
+        background-color: #f1f5f9;
+        border-left: 4px solid #0d6efd;
+        padding: 0.55rem 0.9rem;
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: #1e293b;
+        border-radius: 0 4px 4px 0;
+    }
+
+    /* Tabel dengan Header Gelap Sesuai Gambar Referensi */
+    .report-table thead th {
+        background-color: #212529 !important;
+        color: #ffffff !important;
+        font-weight: 600;
+        border: 1px solid #343a40;
+        padding: 0.65rem 0.5rem;
+        vertical-align: middle;
+    }
+
+    .report-table tbody td {
+        border-color: #e9ecef;
+        padding: 0.55rem 0.5rem;
+    }
+
+    /* Pengaturan Cetak (window.print) */
+    @media print {
+        body {
+            background-color: #ffffff !important;
+        }
+
+        .sidebar, .main-navbar, .no-print {
+            display: none !important;
+        }
+
+        .main-content {
+            margin-left: 0 !important;
+            padding: 0 !important;
+        }
+
+        .content-body {
+            padding: 0 !important;
+        }
+
+        .report-sheet {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+
+        .report-table thead th {
+            background-color: #212529 !important;
+            color: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .report-section-bar {
+            background-color: #f1f5f9 !important;
+            border-left: 4px solid #0d6efd !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .badge-cluster-c1, .badge-cluster-c2, .badge-cluster-c3 {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
+
+{% endblock %}

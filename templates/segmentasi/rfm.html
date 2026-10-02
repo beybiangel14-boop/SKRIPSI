@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Perhitungan RFM - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Perhitungan RFM{% endblock %}
+
+{% block content %}
+
+<!-- Card Informasi & Tombol -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h6 class="fw-bold mb-3">Perhitungan Nilai RFM</h6>
+
+        <!-- Info singkat jumlah data -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="p-3 bg-light rounded border">
+                    <div class="text-muted small">Data Pelanggan</div>
+                    <div class="fw-bold">{{ total_p }} Pelanggan</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 bg-light rounded border">
+                    <div class="text-muted small">Data Transaksi</div>
+                    <div class="fw-bold">{{ total_t }} Transaksi</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keterangan waktu terakhir hitung -->
+        {% if last_run %}
+        <p class="text-muted small mb-3">
+            <i class="bi bi-clock-history"></i>
+            Terakhir dihitung: <strong>{{ last_run.strftime('%d-%m-%Y %H:%M') }}</strong>
+        </p>
+        {% else %}
+        <p class="text-danger small mb-3">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            Nilai RFM belum pernah dihitung.
+        </p>
+        {% endif %}
+
+        <!-- Tombol Hitung RFM -->
+        <form action="" method="POST" id="rfmForm">
+            <button type="submit" class="btn btn-primary fw-semibold"
+                {% if total_p == 0 %}disabled{% endif %}>
+                <i class="bi bi-play-circle me-1"></i> Hitung Nilai RFM
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Tabel Hasil RFM -->
+<div class="card">
+    <div class="card-body">
+        <h6 class="fw-bold mb-3">Hasil Perhitungan RFM</h6>
+
+        {% if not hasil_list %}
+        <div class="alert alert-warning mb-0">
+            <i class="bi bi-exclamation-circle me-1"></i>
+            Belum ada data RFM. Klik tombol di atas untuk menghitung.
+        </div>
+        {% else %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover datatable-init align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th width="50" class="text-center">No</th>
+                        <th>Nama Pelanggan</th>
+                        <th width="160" class="text-center">Recency (Hari)</th>
+                        <th width="160" class="text-center">Frequency (Kali)</th>
+                        <th class="text-end">Monetary (Rp)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in hasil_list %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td>{{ h.nama_pelanggan }}</td>
+                        <td class="text-center">{{ h.recency }}</td>
+                        <td class="text-center">{{ h.frequency }}</td>
+                        <td class="text-end">Rp {{ "{:,.0f}".format(h.monetary) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tombol & Collapse Lihat Proses Perhitungan RFM -->
+{% if hasil_list %}
+{% set models = url_for.__globals__['__builtins__']['__import__']('models') %}
+{% set Pelanggan = models.Pelanggan %}
+{% set datetime = url_for.__globals__['__builtins__']['__import__']('datetime').datetime %}
+{% set all_pelanggan = Pelanggan.query.order_by(Pelanggan.nama_pelanggan).all() %}
+{% set ref_date = last_run.date() if last_run else datetime.now().date() %}
+{% set months_id = {1:'Januari', 2:'Februari', 3:'Maret', 4:'April', 5:'Mei', 6:'Juni', 7:'Juli', 8:'Agustus', 9:'September', 10:'Oktober', 11:'November', 12:'Desember'} %}
+
+<div class="mt-3 mb-4">
+    <button class="btn btn-outline-primary fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProsesRFM" aria-expanded="false" aria-controls="collapseProsesRFM">
+        <i class="bi bi-calculator me-1"></i> Lihat Proses Perhitungan
+    </button>
+
+    <div class="collapse mt-3" id="collapseProsesRFM">
+        <div class="card card-body border-primary-subtle shadow-sm p-4">
+            <h6 class="fw-bold text-primary mb-3">
+                <i class="bi bi-info-circle me-1"></i> Penelusuran (Traceability) Perhitungan RFM
+            </h6>
+            
+            <div class="mb-4 row align-items-center">
+                <label for="selectPelangganRfm" class="col-sm-3 col-form-label fw-semibold">Pilih Pelanggan Sample:</label>
+                <div class="col-sm-6">
+                    <select id="selectPelangganRfm" class="form-select border-primary" onchange="showRfmDetail(this.value)">
+                        {% for p in all_pelanggan %}
+                        <option value="{{ p.id }}">{{ p.nama_pelanggan }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            {% for p in all_pelanggan %}
+            {% set tx_list = p.transaksi %}
+            {% set tx_count = tx_list|length %}
+            
+            {% set dates = [] %}
+            {% for t in tx_list %}
+                {% set _ = dates.append(t.tanggal_transaksi) %}
+            {% endfor %}
+            
+            {% set last_tx_date = dates|max if dates else None %}
+            {% set recency_days = (ref_date - last_tx_date).days if last_tx_date else 9999 %}
+            {% if recency_days < 0 %}{% set recency_days = 0 %}{% endif %}
+
+            <div class="detail-rfm-box" id="detailRfm_{{ p.id }}" style="display: {% if loop.first %}block{% else %}none{% endif %};">
+                <div class="card p-3 mb-3 bg-light border">
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Sample Pelanggan: {{ p.nama_pelanggan }}</h6>
+                    
+                    <div class="row g-4">
+                        <!-- Recency -->
+                        <div class="col-md-4">
+                            <div class="card h-100 border-info border-opacity-50">
+                                <div class="card-header bg-info-subtle fw-bold text-dark">
+                                    Recency
+                                </div>
+                                <div class="card-body text-center d-flex flex-column justify-content-between">
+                                    <div>
+                                        <div class="mb-3 text-start">
+                                            <span class="text-muted small d-block fw-semibold">Tanggal Acuan</span>
+                                            <span class="fs-6 fw-bold text-dark">{{ ref_date.strftime('%d') }} {{ months_id[ref_date.month] }} {{ ref_date.strftime('%Y') }}</span>
+                                        </div>
+                                        <div class="mb-3 text-start">
+                                            <span class="text-muted small d-block fw-semibold">Tanggal Transaksi Terakhir</span>
+                                            <span class="fs-6 fw-bold text-dark">
+                                                {% if last_tx_date %}
+                                                    {{ last_tx_date.strftime('%d') }} {{ months_id[last_tx_date.month] }} {{ last_tx_date.strftime('%Y') }}
+                                                {% else %}
+                                                    Belum ada transaksi
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-white rounded border">
+                                        <span class="text-muted small d-block mb-2 fw-semibold">Perhitungan</span>
+                                        <div class="fw-semibold text-dark">
+                                            {{ ref_date.strftime('%d') }} {{ months_id[ref_date.month] }} {{ ref_date.strftime('%Y') }}
+                                        </div>
+                                        <div class="my-1 fw-bold text-secondary">-</div>
+                                        <div class="fw-semibold text-dark">
+                                            {% if last_tx_date %}
+                                                {{ last_tx_date.strftime('%d') }} {{ months_id[last_tx_date.month] }} {{ last_tx_date.strftime('%Y') }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </div>
+                                        <div class="my-1 fw-bold text-secondary">=</div>
+                                        <div class="fw-bold fs-4 text-primary">{{ recency_days }} Hari</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Frequency -->
+                        <div class="col-md-4">
+                            <div class="card h-100 border-warning border-opacity-50">
+                                <div class="card-header bg-warning-subtle fw-bold text-dark">
+                                    Frequency
+                                </div>
+                                <div class="card-body text-center d-flex flex-column justify-content-between">
+                                    <div class="text-start mb-3">
+                                        <span class="text-muted small d-block fw-semibold">Jumlah seluruh transaksi pelanggan</span>
+                                    </div>
+                                    <div class="p-4 bg-white rounded border my-auto">
+                                        <div class="my-1 fw-bold text-secondary">=</div>
+                                        <div class="fw-bold fs-3 text-warning-emphasis">{{ tx_count }} transaksi</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Monetary -->
+                        <div class="col-md-4">
+                            <div class="card h-100 border-success border-opacity-50">
+                                <div class="card-header bg-success-subtle fw-bold text-dark">
+                                    Monetary
+                                </div>
+                                <div class="card-body text-center d-flex flex-column justify-content-between">
+                                    <div class="text-start mb-2">
+                                        <span class="text-muted small d-block fw-semibold mb-2">Penjumlahan Rincian Nominal Transaksi</span>
+                                        <div class="p-2 bg-white rounded border font-monospace text-dark text-start" style="max-height: 150px; overflow-y: auto; font-size: 0.85rem;">
+                                            {% if tx_list %}
+                                                {% set total_m = namespace(val=0) %}
+                                                {% for t in tx_list %}
+                                                    {% set total_m.val = total_m.val + t.total_transaksi %}
+                                                    <div>Rp{{ "{:,.0f}".format(t.total_transaksi).replace(',', '.') }}</div>
+                                                    {% if not loop.last %}
+                                                    <div class="text-center text-muted fw-bold">+</div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% else %}
+                                                <div>Rp0</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-white rounded border">
+                                        <div class="my-1 fw-bold text-secondary">=</div>
+                                        <div class="fw-bold fs-5 text-success">
+                                            Rp{{ "{:,.0f}".format(p.segmentasi.monetary if p.segmentasi else (total_m.val if tx_list else 0)).replace(',', '.') }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tampilkan loading saat form disubmit
+    const rfmForm = document.getElementById('rfmForm');
+    if (rfmForm) {
+        rfmForm.addEventListener('submit', function() {
+            var btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menghitung...';
+        });
+    }
+
+    function showRfmDetail(id) {
+        document.querySelectorAll('.detail-rfm-box').forEach(el => el.style.display = 'none');
+        const selected = document.getElementById('detailRfm_' + id);
+        if (selected) selected.style.display = 'block';
+    }
+</script>
+{% endblock %}

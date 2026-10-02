@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Rekomendasi Strategi - Segmentasi Pelanggan{% endblock %}
+
+{% block page_title %}Rekomendasi Strategi Pemasaran{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- C1: Pelanggan Loyal -->
+    <div class="col-md-4 mb-4">
+        <div class="card card-premium h-100">
+            <!-- Header Card Hijau -->
+            <div class="p-4 text-center text-white" style="background-color: var(--color-loyal);">
+                <i class="bi bi-award-fill" style="font-size: 3rem;"></i>
+                <h4 class="mt-2 mb-1">C1 - Pelanggan Loyal</h4>
+                <span class="text-white-50" style="font-size: 0.85rem;">Prioritas Utama Bisnis</span>
+            </div>
+            
+            <div class="p-4 d-flex flex-column justify-content-between flex-grow-1">
+                <div>
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-info-circle text-primary me-1"></i> Karakteristik Segmen:</h6>
+                    <ul class="ps-3 mb-4" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li>Frekuensi transaksi tinggi (sering membeli).</li>
+                        <li>Nilai transaksi tinggi (membeli dalam volume besar).</li>
+                        <li>Masih aktif bertransaksi hingga periode terakhir.</li>
+                    </ul>
+                    
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-bullseye text-success me-1"></i> Strategi Rekomendasi:</h6>
+                    <ul class="ps-3 mb-0" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li><strong>Prioritas Pelayanan</strong>: Kecepatan pengiriman dan respon chat utama.</li>
+                        <li><strong>Harga Khusus (Diskon Grosir)</strong>: Skema harga reseller spesial.</li>
+                        <li><strong>Bonus Pelanggan</strong>: Memberikan potongan harga berkala atau bonus kemasan.</li>
+                        <li><strong>Prioritas Stok</strong>: Didahulukan saat pasokan ikan giling sedang terbatas/langka.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- C2: Pelanggan Aktif -->
+    <div class="col-md-4 mb-4">
+        <div class="card card-premium h-100">
+            <!-- Header Card Kuning -->
+            <div class="p-4 text-center text-dark" style="background-color: var(--color-aktif);">
+                <i class="bi bi-graph-up-arrow" style="font-size: 3rem;"></i>
+                <h4 class="mt-2 mb-1">C2 - Pelanggan Aktif</h4>
+                <span class="text-dark-50" style="font-size: 0.85rem;">Potensial Menjadi Loyal</span>
+            </div>
+            
+            <div class="p-4 d-flex flex-column justify-content-between flex-grow-1">
+                <div>
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-info-circle text-primary me-1"></i> Karakteristik Segmen:</h6>
+                    <ul class="ps-3 mb-4" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li>Masih aktif bertransaksi dalam rentang waktu dekat.</li>
+                        <li>Frekuensi dan nominal transaksi cukup baik (moderat).</li>
+                        <li>Membeli untuk kebutuhan reguler bulanan/mingguan.</li>
+                    </ul>
+                    
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-bullseye text-warning-emphasis me-1"></i> Strategi Rekomendasi:</h6>
+                    <ul class="ps-3 mb-0" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li><strong>Menjaga Hubungan Baik</strong>: Memberikan layanan ramah dan meminta feedback kualitas ikan.</li>
+                        <li><strong>Promosi Pembelian</strong>: Menawarkan potongan harga bersyarat (misal: diskon jika memesan di atas 20 kg).</li>
+                        <li><strong>Edukasi Produk</strong>: Memberitahukan jenis ikan giling baru (misal: ikan gabus giling atau kakap giling).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- C3: Pelanggan Non-Aktif -->
+    <div class="col-md-4 mb-4">
+        <div class="card card-premium h-100">
+            <!-- Header Card Merah -->
+            <div class="p-4 text-center text-white" style="background-color: var(--color-nonaktif);">
+                <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
+                <h4 class="mt-2 mb-1">C3 - Non Aktif</h4>
+                <span class="text-white-50" style="font-size: 0.85rem;">Segmen Berisiko Churn</span>
+            </div>
+            
+            <div class="p-4 d-flex flex-column justify-content-between flex-grow-1">
+                <div>
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-info-circle text-primary me-1"></i> Karakteristik Segmen:</h6>
+                    <ul class="ps-3 mb-4" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li>Jarang bertransaksi (sudah lama tidak memesan).</li>
+                        <li>Frekuensi transaksi total sangat sedikit.</li>
+                        <li>Nilai kontribusi omzet penjualan rendah.</li>
+                    </ul>
+                    
+                    <h6 class="fw-bold border-bottom pb-2 mb-3 text-dark"><i class="bi bi-bullseye text-danger me-1"></i> Strategi Rekomendasi:</h6>
+                    <ul class="ps-3 mb-0" style="font-size: 0.88rem; line-height: 1.6;">
+                        <li><strong>Follow Up Pelanggan</strong>: Menghubungi kembali via WhatsApp untuk menanyakan kabar bisnis mereka.</li>
+                        <li><strong>Penawaran Re-aktivasi</strong>: Memberikan promo khusus selamat datang kembali.</li>
+                        <li><strong>Evaluasi Masalah</strong>: Cari tahu alasan beralih (misal: masalah harga, kualitas produk, atau pengiriman).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

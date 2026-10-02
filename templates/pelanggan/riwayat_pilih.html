@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Pilih Pelanggan - Riwayat Pelanggan{% endblock %}
+
+{% block page_title %}Riwayat & Profil Pelanggan{% endblock %}
+
+{% block content %}
+<div class="card card-premium p-4">
+    <h5 class="card-title mb-4">Pilih Pelanggan</h5>
+    <p class="text-muted" style="font-size: 0.9rem;">
+        Silakan klik tombol <strong>Lihat Riwayat</strong> pada pelanggan yang ingin Anda tinjau profil lengkapnya, total transaksi, total pembelian, serta riwayat pembelanjaan detailnya.
+    </p>
+
+    <div class="table-responsive mt-3">
+        <table class="table table-hover align-middle datatable-init">
+            <thead class="table-light">
+                <tr>
+                    <th width="60" class="text-center">ID</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="150">Nomor HP</th>
+                    <th>Alamat</th>
+                    <th width="180" class="text-center">Tindakan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pelanggan_list %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">#{{ p.id }}</td>
+                    <td class="fw-semibold text-dark">{{ p.nama_pelanggan }}</td>
+                    <td>{{ p.nomor_hp }}</td>
+                    <td>{{ p.alamat[:60] + '...' if p.alamat|length > 60 else p.alamat }}</td>
+                    <td class="text-center">
+                        <a href="{{ url_for('pelanggan.riwayat', id=p.id) }}" class="btn btn-sm btn-primary fw-semibold">
+                            <i class="bi bi-clock-history"></i> Lihat Riwayat
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

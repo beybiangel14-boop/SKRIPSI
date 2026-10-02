@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Hasil Segmentasi{% endblock %}
+
+{% block page_title %}Hasil Segmentasi{% endblock %}
+
+{% block content %}
+
+<!-- Panel Kontrol & Ringkasan -->
+<div class="card card-premium p-3 mb-4">
+    <div class="row align-items-center g-3">
+        <!-- Tombol Jalankan (Hanya Operator) & Tombol Lihat Proses -->
+        <div class="col-md-7 d-flex align-items-center gap-2 flex-wrap">
+            {% if session.get('role') == 'admin' %}
+            <form action="" method="POST" id="prosesForm" class="m-0">
+                <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if total_rfm == 0 %}disabled{% endif %}>
+                    <i class="bi bi-play-fill"></i> Jalankan Clustering
+                </button>
+            </form>
+            {% endif %}
+
+            {% if has_run_kmeans %}
+            <button class="btn btn-outline-primary btn-sm fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProsesCluster" aria-expanded="false" aria-controls="collapseProsesCluster">
+                <i class="bi bi-diagram-3 me-1"></i> Lihat Proses Clustering
+            </button>
+            {% endif %}
+
+            {% if total_rfm == 0 %}
+            <span class="text-danger small ms-2">
+                <i class="bi bi-exclamation-triangle-fill"></i> Data RFM belum dihitung
+            </span>
+            {% elif has_run_kmeans and last_run %}
+            <span class="text-muted small ms-2">
+                Terakhir: {{ last_run.strftime('%d-%m-%Y %H:%M') }}
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Ringkasan Klaster -->
+        <div class="col-md-5 text-md-end">
+            <span class="badge-cluster-c1 me-1">Loyal: {{ loyal_count }}</span>
+            <span class="badge-cluster-c2 me-1">Aktif: {{ aktif_count }}</span>
+            <span class="badge-cluster-c3">Nonaktif: {{ nonaktif_count }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Collapse Proses Clustering K-Means -->
+{% if has_run_kmeans %}
+{% set models = url_for.__globals__['__builtins__']['__import__']('models') %}
+{% set core_ml = url_for.__globals__['__builtins__']['__import__']('utils.core_ml', fromlist=['MinMaxScalerPure', 'KMeansPure']) %}
+{% set math = url_for.__globals__['__builtins__']['__import__']('math') %}
+
+{% set rfm_records = models.SegmentasiHasil.query.all() %}
+{% if rfm_records %}
+    {% set r_vals = [] %}
+    {% set f_vals = [] %}
+    {% set m_vals = [] %}
+    {% set valid_records = [] %}
+
+    {% for rec in rfm_records %}
+        {% if rec.frequency > 0 %}
+            {% set _ = r_vals.append(rec.recency) %}
+            {% set _ = f_vals.append(rec.frequency) %}
+            {% set _ = m_vals.append(rec.monetary|float) %}
+            {% set _ = valid_records.append(rec) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if valid_records %}
+        {% set scaler_r = core_ml.MinMaxScalerPure().fit(r_vals) %}
+        {% set scaler_f = core_ml.MinMaxScalerPure().fit(f_vals) %}
+        {% set scaler_m = core_ml.MinMaxScalerPure().fit(m_vals) %}
+
+        {% set r_norm_list = scaler_r.transform(r_vals) %}
+        {% set f_norm_list = scaler_f.transform(f_vals) %}
+        {% set m_norm_list = scaler_m.transform(m_vals) %}
+
+        {% set X = [] %}
+        {% for i in range(valid_records|length) %}
+            {% set _ = X.append([r_norm_list[i], f_norm_list[i], m_norm_list[i]]) %}
+        {% endfor %}
+
+        {% set kmeans = core_ml.KMeansPure(n_clusters=3).fit(X) %}
+        {% set centroids = kmeans.centroids %}
+
+        {% set qual = [] %}
+        {% for c in centroids %}
+            {% set idx = loop.index0 %}
+            {% set _ = qual.append((idx, c[1] + c[2] - c[0])) %}
+        {% endfor %}
+
+        {# Quality sorting #}
+        {% set c1_idx = (qual|sort(attribute=1, reverse=True))[0][0] %}
+        {% set c2_idx = (qual|sort(attribute=1, reverse=True))[1][0] %}
+        {% set c3_idx = (qual|sort(attribute=1, reverse=True))[2][0] %}
+
+        {% set c1_center = centroids[c1_idx] %}
+        {% set c2_center = centroids[c2_idx] %}
+        {% set c3_center = centroids[c3_idx] %}
+
+<div class="collapse mb-4" id="collapseProsesCluster">
+    <div class="card card-body border-primary-subtle shadow-sm p-4">
+        <h6 class="fw-bold text-primary mb-3">
+            <i class="bi bi-info-circle me-1"></i> Penelusuran (Traceability) Proses Clustering K-Means (K=3)
+        </h6>
+
+        <div class="mb-4 row align-items-center">
+            <label for="selectPelangganCluster" class="col-sm-3 col-form-label fw-semibold">Pilih Pelanggan Sample:</label>
+            <div class="col-sm-6">
+                <select id="selectPelangganCluster" class="form-select border-primary" onchange="showClusterDetail(this.value)">
+                    {% for rec in rfm_records %}
+                    <option value="{{ rec.pelanggan_id }}">{{ rec.pelanggan.nama_pelanggan }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        {% for rec in rfm_records %}
+            {% if rec.frequency > 0 %}
+                {% set rn = scaler_r.transform([rec.recency])[0] | round(4) %}
+                {% set fn = scaler_f.transform([rec.frequency])[0] | round(4) %}
+                {% set mn = scaler_m.transform([rec.monetary|float])[0] | round(4) %}
+            {% else %}
+                {% set rn = 0.0 %}
+                {% set fn = 0.0 %}
+                {% set mn = 0.0 %}
+            {% endif %}
+
+            {% set c1_r = c1_center[0] | round(4) %}
+            {% set c1_f = c1_center[1] | round(4) %}
+            {% set c1_m = c1_center[2] | round(4) %}
+
+            {% set c2_r = c2_center[0] | round(4) %}
+            {% set c2_f = c2_center[1] | round(4) %}
+            {% set c2_m = c2_center[2] | round(4) %}
+
+            {% set c3_r = c3_center[0] | round(4) %}
+            {% set c3_f = c3_center[1] | round(4) %}
+            {% set c3_m = c3_center[2] | round(4) %}
+
+            {% set d1_sq = (rn - c1_r)**2 + (fn - c1_f)**2 + (mn - c1_m)**2 %}
+            {% set d1 = math.sqrt(d1_sq) | round(4) %}
+
+            {% set d2_sq = (rn - c2_r)**2 + (fn - c2_f)**2 + (mn - c2_m)**2 %}
+            {% set d2 = math.sqrt(d2_sq) | round(4) %}
+
+            {% set d3_sq = (rn - c3_r)**2 + (fn - c3_f)**2 + (mn - c3_m)**2 %}
+            {% set d3 = math.sqrt(d3_sq) | round(4) %}
+
+            {% set min_d = [d1, d2, d3]|min %}
+            {% if min_d == d1 %}
+                {% set win_cluster = 1 %}
+                {% set win_status = "Pelanggan Loyal" %}
+                {% set win_badge = "badge-cluster-c1" %}
+            {% elif min_d == d2 %}
+                {% set win_cluster = 2 %}
+                {% set win_status = "Pelanggan Aktif" %}
+                {% set win_badge = "badge-cluster-c2" %}
+            {% else %}
+                {% set win_cluster = 3 %}
+                {% set win_status = "Pelanggan Non Aktif" %}
+                {% set win_badge = "badge-cluster-c3" %}
+            {% endif %}
+
+        <div class="detail-cluster-box" id="detailCluster_{{ rec.pelanggan_id }}" style="display: {% if loop.first %}block{% else %}none{% endif %};">
+            <div class="card p-3 mb-3 bg-light border">
+                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Sample Pelanggan: {{ rec.pelanggan.nama_pelanggan }}</h6>
+
+                <!-- Data Normalisasi -->
+                <div class="card mb-3 border-secondary border-opacity-25 bg-white">
+                    <div class="card-header bg-light fw-bold text-dark">
+                        <i class="bi bi-sliders me-1"></i> Data Normalisasi
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center font-monospace">
+                            <div class="col-md-4">
+                                <span class="text-muted small font-sans-serif d-block">R</span>
+                                <strong class="fs-5 text-primary">{{ rn }}</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted small font-sans-serif d-block">F</span>
+                                <strong class="fs-5 text-warning-emphasis">{{ fn }}</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted small font-sans-serif d-block">M</span>
+                                <strong class="fs-5 text-success">{{ mn }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Menghitung Jarak ke Setiap Centroid -->
+                <div class="card mb-3 border-primary border-opacity-25 bg-white">
+                    <div class="card-header bg-primary-subtle fw-bold text-dark">
+                        <i class="bi bi-rulers me-1"></i> Menghitung Jarak Euclidean ke Setiap Centroid
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Centroid Cluster 1 -->
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded border h-100">
+                                    <span class="fw-bold text-dark d-block mb-1">Centroid Cluster 1 (Loyal)</span>
+                                    <div class="font-monospace text-muted small mb-2">
+                                        R={{ c1_r }}, F={{ c1_f }}, M={{ c1_m }}
+                                    </div>
+                                    <div class="font-monospace bg-white p-2 rounded border" style="font-size: 0.8rem;">
+                                        √(({{ rn }} - {{ c1_r }})² + ({{ fn }} - {{ c1_f }})² + ({{ mn }} - {{ c1_m }})²)
+                                    </div>
+                                    <div class="text-center mt-2">
+                                        <div class="text-muted small">=</div>
+                                        <div class="fw-bold fs-5 text-primary">{{ d1 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Centroid Cluster 2 -->
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded border h-100">
+                                    <span class="fw-bold text-dark d-block mb-1">Centroid Cluster 2 (Aktif)</span>
+                                    <div class="font-monospace text-muted small mb-2">
+                                        R={{ c2_r }}, F={{ c2_f }}, M={{ c2_m }}
+                                    </div>
+                                    <div class="font-monospace bg-white p-2 rounded border" style="font-size: 0.8rem;">
+                                        √(({{ rn }} - {{ c2_r }})² + ({{ fn }} - {{ c2_f }})² + ({{ mn }} - {{ c2_m }})²)
+                                    </div>
+                                    <div class="text-center mt-2">
+                                        <div class="text-muted small">=</div>
+                                        <div class="fw-bold fs-5 text-warning-emphasis">{{ d2 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Centroid Cluster 3 -->
+                            <div class="col-md-4">
+                                <div class="p-3 bg-light rounded border h-100">
+                                    <span class="fw-bold text-dark d-block mb-1">Centroid Cluster 3 (Non Aktif)</span>
+                                    <div class="font-monospace text-muted small mb-2">
+                                        R={{ c3_r }}, F={{ c3_f }}, M={{ c3_m }}
+                                    </div>
+                                    <div class="font-monospace bg-white p-2 rounded border" style="font-size: 0.8rem;">
+                                        √(({{ rn }} - {{ c3_r }})² + ({{ fn }} - {{ c3_f }})² + ({{ mn }} - {{ c3_m }})²)
+                                    </div>
+                                    <div class="text-center mt-2">
+                                        <div class="text-muted small">=</div>
+                                        <div class="fw-bold fs-5 text-danger">{{ d3 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hasil Keputusan Jarak Terkecil -->
+                <div class="card border-success border-opacity-50 bg-white text-center">
+                    <div class="card-body py-3">
+                        <span class="text-muted small d-block mb-1 fw-semibold">Jarak Terkecil</span>
+                        <div class="fw-bold fs-4 text-dark mb-2">{{ min_d }}</div>
+                        <div class="fs-4 text-primary mb-2">↓</div>
+                        <span class="text-muted small d-block mb-1 fw-semibold">Pelanggan masuk ke</span>
+                        <div class="fw-bold fs-5 text-dark mb-2">Cluster {{ win_cluster }}</div>
+                        <div class="fs-4 text-primary mb-2">↓</div>
+                        <div>
+                            <span class="{{ win_badge }} fs-6 px-3 py-1">{{ win_status }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+    {% endif %}
+{% endif %}
+{% endif %}
+
+<!-- Tabel Hasil -->
+<div class="card card-premium p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="card-title mb-0">Hasil Klaster K-Means</h5>
+        {% if hasil_list %}
+        <a href="{{ url_for('laporan.index') }}" class="btn btn-primary btn-sm fw-semibold">
+            <i class="bi bi-file-earmark-pdf-fill"></i> Cetak PDF
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not hasil_list %}
+    <div class="alert alert-warning text-center py-4 mb-0 rounded-3">
+        <span class="fw-bold d-block mb-1">Belum Ada Hasil Segmentasi</span>
+        <span class="text-muted small">Silakan jalankan proses clustering terlebih dahulu.</span>
+    </div>
+    {% else %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle datatable-init">
+            <thead class="table-light">
+                <tr>
+                    <th width="50" class="text-center">No</th>
+                    <th>Nama Pelanggan</th>
+                    <th width="120" class="text-center">Recency</th>
+                    <th width="120" class="text-center">Frequency</th>
+                    <th class="text-end">Monetary</th>
+                    <th width="120" class="text-center">Cluster</th>
+                    <th width="180" class="text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in hasil_list %}
+                <tr>
+                    <td class="text-center text-muted fw-semibold">{{ loop.index }}</td>
+                    <td class="fw-bold text-dark">{{ h.nama_pelanggan }}</td>
+                    <td class="text-center text-secondary">{{ h.recency }} hari</td>
+                    <td class="text-center text-secondary">{{ h.frequency }} kali</td>
+                    <td class="text-end fw-bold text-dark">Rp {{ "{:,.0f}".format(h.monetary) }}</td>
+                    <td class="text-center fw-bold text-primary-emphasis">C{{ h.cluster + 1 }}</td>
+                    <td class="text-center">
+                        {% if h.cluster == 0 %}
+                            <span class="badge-cluster-c1">Pelanggan Loyal</span>
+                        {% elif h.cluster == 1 %}
+                            <span class="badge-cluster-c2">Pelanggan Aktif</span>
+                        {% elif h.cluster == 2 %}
+                            <span class="badge-cluster-c3">Pelanggan Non Aktif</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if session.get('role') == 'admin' %}
+<script>
+    const prosesForm = document.getElementById('prosesForm');
+    if (prosesForm) {
+        prosesForm.addEventListener('submit', function() {
+            var btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Memproses...';
+        });
+    }
+</script>
+{% endif %}
+
+<script>
+    function showClusterDetail(id) {
+        document.querySelectorAll('.detail-cluster-box').forEach(el => el.style.display = 'none');
+        const selected = document.getElementById('detailCluster_' + id);
+        if (selected) selected.style.display = 'block';
+    }
+</script>
+{% endblock %}
