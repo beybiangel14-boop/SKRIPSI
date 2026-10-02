@@ -15,54 +15,53 @@
 {% endif %}
 
 <!-- ========================================================================= -->
-<!-- LANGKAH 1: DATASET & FILTER WAKTU -->
+<!-- LANGKAH 1: DATASET (SEMUA DATA) -->
 <!-- ========================================================================= -->
 <div class="card card-premium p-4 mb-4" id="step-1">
     <div class="step-header">
         <span class="step-badge">LANGKAH 1</span>
-        <h5 class="step-title">Dataset & Filter Waktu</h5>
+        <h5 class="step-title">Dataset — Semua Data Transaksi</h5>
     </div>
 
-    <form method="GET" action="{{ url_for('segmentasi.analisis') }}" class="mb-4">
-        {% if show_elbow %}<input type="hidden" name="show_elbow" value="1">{% endif %}
-        <div class="row align-items-end g-3">
-            <div class="col-md-6">
-                <label for="periode" class="form-label fw-semibold small text-muted">Pilih Rentang Waktu Transaksi:</label>
-                <select name="periode" id="periode" class="form-select border-primary-subtle">
-                    <option value="semua" {% if periode == 'semua' %}selected{% endif %}>Semua Data Transaksi</option>
-                    <option value="30_hari" {% if periode == '30_hari' %}selected{% endif %}>30 Hari Terakhir</option>
-                    <option value="90_hari" {% if periode == '90_hari' %}selected{% endif %}>90 Hari Terakhir</option>
-                    <option value="365_hari" {% if periode == '365_hari' %}selected{% endif %}>1 Tahun Terakhir</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary fw-semibold">
-                    Terapkan & Lanjut &rarr;
-                </button>
-            </div>
-        </div>
-    </form>
+    <div class="alert alert-info border-info bg-info-subtle text-info-emphasis small mb-4 d-flex align-items-start gap-2">
+        <i class="bi bi-database fs-5 mt-1"></i>
+        <span>Sistem menggunakan <strong>seluruh data transaksi</strong> (tanpa filter waktu) agar perhitungan RFM,
+            normalisasi, dan clustering konsisten serta hasilnya dapat direproduksi.</span>
+    </div>
 
     <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
                 <div>
                     <span class="text-muted small d-block">Jumlah Pelanggan</span>
-                    <strong class="fs-4 text-dark">{{ total_p }} Pelanggan</strong>
+                    <strong class="fs-4 text-dark">{{ total_p }}</strong>
+                    <span class="text-muted small ms-1">pelanggan</span>
                 </div>
                 <div class="bg-primary-subtle text-primary p-3 rounded-circle">
                     <i class="bi bi-people fs-4"></i>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
                 <div>
                     <span class="text-muted small d-block">Jumlah Data Transaksi</span>
-                    <strong class="fs-4 text-dark">{{ total_t }} Transaksi</strong>
+                    <strong class="fs-4 text-dark">{{ total_t }}</strong>
+                    <span class="text-muted small ms-1">transaksi</span>
                 </div>
                 <div class="bg-success-subtle text-success p-3 rounded-circle">
                     <i class="bi bi-cart-check fs-4"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small d-block">Rentang Tanggal Data</span>
+                    <strong class="fs-6 text-dark">{{ rentang_tanggal }}</strong>
+                </div>
+                <div class="bg-warning-subtle text-warning p-3 rounded-circle">
+                    <i class="bi bi-calendar3 fs-4"></i>
                 </div>
             </div>
         </div>
@@ -80,9 +79,9 @@
             <h5 class="step-title">Perhitungan RFM</h5>
         </div>
         {% if session.get('role') == 'admin' %}
-        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}">
+        <form method="POST" action="{{ url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0) }}">
             <input type="hidden" name="action" value="hitung_rfm">
-            <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if total_p == 0 %}disabled{% endif %}>
+            <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if total_p == 0 or total_t == 0 %}disabled title="Data pelanggan/transaksi kosong"{% endif %}>
                 Hitung RFM &rarr;
             </button>
         </form>
@@ -155,7 +154,11 @@
     </div>
     {% else %}
     <div class="alert alert-warning text-center py-4 mb-0 small">
+        {% if total_p == 0 or total_t == 0 %}
+        Dataset masih kosong — tambah data pelanggan/transaksi terlebih dahulu sebelum menghitung RFM.
+        {% else %}
         Tekan tombol <strong>Hitung RFM &rarr;</strong> di atas untuk menghitung nilai Recency, Frequency, dan Monetary pelanggan.
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -399,10 +402,10 @@
             <h5 class="step-title">Elbow Method — Penentuan Jumlah Cluster Optimal</h5>
         </div>
         {% if session.get('role') == 'admin' and has_rfm and not show_elbow %}
-        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode) }}">
+        <form method="POST" action="{{ url_for('segmentasi.analisis') }}">
             <input type="hidden" name="action" value="jalankan_elbow">
             <button type="submit" class="btn btn-primary btn-sm fw-semibold">
-                Jalankan Elbow Method &rarr;
+                Tampilkan Grafik Elbow &rarr;
             </button>
         </form>
         {% endif %}
@@ -414,20 +417,20 @@
     </p>
 
     {% if not show_elbow %}
-    <!-- Tombol Eksekusi Jika Belum Ditekan -->
+    <!-- Tombol Tampilkan Grafik -->
     <div class="text-center py-4 bg-light rounded border">
         {% if session.get('role') == 'admin' and has_rfm %}
-        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode) }}">
+        <form method="POST" action="{{ url_for('segmentasi.analisis') }}">
             <input type="hidden" name="action" value="jalankan_elbow">
             <button type="submit" class="btn btn-primary fw-semibold px-4 py-2">
-                <i class="bi bi-graph-up me-1"></i> Jalankan Elbow Method &rarr;
+                <i class="bi bi-graph-up me-1"></i> Tampilkan Grafik Elbow &rarr;
             </button>
         </form>
-        <span class="text-muted small d-block mt-2">Klik tombol di atas untuk menghitung inertia K=2 sampai K=6 dan melihat grafik.</span>
+        <span class="text-muted small d-block mt-2">Grafik menampilkan hasil evaluasi Elbow (inertia K=2 &ndash; K=6) dari model tersimpan; bila model belum ada, dihitung sekali dari data RFM saat ini.</span>
         {% elif not has_rfm %}
-        <span class="text-muted small">Jalankan perhitungan RFM (Langkah 2) terlebih dahulu untuk memproses Elbow Method.</span>
+        <span class="text-muted small">Jalankan perhitungan RFM (Langkah 2) terlebih dahulu untuk menampilkan Elbow Method.</span>
         {% else %}
-        <span class="text-muted small">Elbow Method belum dijalankan oleh Operator.</span>
+        <span class="text-muted small">Menampilkan grafik Elbow hanya dapat dilakukan oleh Operator.</span>
         {% endif %}
     </div>
     {% else %}
@@ -493,90 +496,6 @@
 
 
 <!-- ========================================================================= -->
-<!-- STATUS MODEL ML (artefak JSON + ambang batas retrain)                     -->
-<!-- ========================================================================= -->
-<div class="card card-premium p-4 mb-4" id="status-model">
-    <div class="step-header">
-        <span class="step-badge">MODEL</span>
-        <h5 class="step-title">Status Model K-Means</h5>
-    </div>
-
-    {% if model_info %}
-    <div class="row g-3 mb-3">
-        <div class="col-md-2">
-            <div class="p-3 bg-white rounded border text-center">
-                <span class="text-muted small d-block mb-1">Versi Model</span>
-                <strong class="fs-5 text-primary">v{{ model_info.versi }}</strong>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded border text-center">
-                <span class="text-muted small d-block mb-1">Tanggal Latih</span>
-                <strong class="fs-6 text-dark">{{ model_info.tanggal_latih.strftime('%d-%m-%Y %H:%M') }}</strong>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="p-3 bg-white rounded border text-center">
-                <span class="text-muted small d-block mb-1">Data Latih</span>
-                <strong class="fs-5 text-dark">{{ model_info.n_samples }}</strong>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="p-3 bg-white rounded border text-center">
-                <span class="text-muted small d-block mb-1">Silhouette</span>
-                <strong class="fs-5 text-success">{{ model_info.silhouette if model_info.silhouette is not none else '-' }}</strong>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded border text-center">
-                <span class="text-muted small d-block mb-1">Alasan Latih</span>
-                <strong class="fs-6 text-dark">{{ model_info.alasan }}</strong>
-            </div>
-        </div>
-    </div>
-
-    {% if retrain_perlu %}
-    <div class="alert alert-warning border-warning d-flex align-items-start gap-2 mb-0 small">
-        <i class="bi bi-exclamation-triangle-fill fs-5 mt-1"></i>
-        <div class="flex-grow-1">
-            <strong>Retrain disarankan — ambang batas terpenuhi:</strong>
-            <ul class="mb-2 mt-1">
-                {% for a in retrain_alasan %}<li>{{ a }}</li>{% endfor %}
-            </ul>
-            {% if session.get('role') == 'admin' %}
-            <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}" class="d-inline">
-                <input type="hidden" name="action" value="retrain">
-                <button type="submit" class="btn btn-warning btn-sm fw-semibold">
-                    <i class="bi bi-arrow-repeat me-1"></i> Retrain Model Sekarang
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-    {% else %}
-    <div class="alert alert-success border-success d-flex align-items-center gap-2 mb-0 small">
-        <i class="bi bi-check-circle-fill fs-5"></i>
-        <span>Model dalam kondisi baik — semua ambang batas retrain (data baru &ge;10%, Silhouette &lt;0.35, drift &ge;10%, umur &gt;90 hari) tidak terpenuhi.</span>
-    </div>
-    {% endif %}
-
-    {% else %}
-    <div class="alert alert-info border-info d-flex align-items-center justify-content-between gap-2 mb-0 small">
-        <span><i class="bi bi-info-circle me-1"></i> Belum ada model tersimpan. Model akan <strong>dilatih otomatis</strong> saat Clustering (Langkah 5) dijalankan pertama kali.</span>
-        {% if session.get('role') == 'admin' and has_rfm %}
-        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}" class="d-inline">
-            <input type="hidden" name="action" value="retrain">
-            <button type="submit" class="btn btn-primary btn-sm fw-semibold" title="Latih model pertama dari data RFM saat ini">
-                <i class="bi bi-cpu me-1"></i> Latih Model
-            </button>
-        </form>
-        {% endif %}
-    </div>
-    {% endif %}
-</div>
-
-
-<!-- ========================================================================= -->
 <!-- LANGKAH 5: CLUSTERING K-MEANS -->
 <!-- ========================================================================= -->
 <div class="card card-premium p-4 mb-4" id="step-5">
@@ -586,12 +505,93 @@
             <h5 class="step-title">Clustering K-Means</h5>
         </div>
         {% if session.get('role') == 'admin' %}
-        <form method="POST" action="{{ url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0) }}">
+        <form method="POST" action="{{ url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0) }}">
             <input type="hidden" name="action" value="jalankan_kmeans">
             <button type="submit" class="btn btn-primary btn-sm fw-semibold" {% if not has_rfm %}disabled{% endif %}>
                 Jalankan Clustering &rarr;
             </button>
         </form>
+        {% endif %}
+    </div>
+
+    <!-- Status Model (artefak JSON + ambang batas retrain) — menempel di Langkah 5 -->
+    <div class="border border-primary-subtle rounded-3 p-3 mb-4 bg-white" id="status-model">
+        <div class="step-header">
+            <span class="step-badge">MODEL</span>
+            <h5 class="step-title">Status Model K-Means</h5>
+        </div>
+
+        {% if model_info %}
+        <div class="row g-3 mb-3">
+            <div class="col-md-2">
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block mb-1">Versi Model</span>
+                    <strong class="fs-5 text-primary">v{{ model_info.versi }}</strong>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block mb-1">Tanggal Latih</span>
+                    <strong class="fs-6 text-dark">{{ model_info.tanggal_latih.strftime('%d-%m-%Y %H:%M') }}</strong>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block mb-1">Data Latih</span>
+                    <strong class="fs-5 text-dark">{{ model_info.n_samples }}</strong>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block mb-1">Silhouette</span>
+                    <strong class="fs-5 text-success">{{ model_info.silhouette if model_info.silhouette is not none else '-' }}</strong>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block mb-1">Alasan Latih</span>
+                    <strong class="fs-6 text-dark">{{ model_info.alasan }}</strong>
+                </div>
+            </div>
+        </div>
+
+        {% if retrain_perlu %}
+        <div class="alert alert-warning border-warning d-flex align-items-start gap-2 mb-0 small">
+            <i class="bi bi-exclamation-triangle-fill fs-5 mt-1"></i>
+            <div class="flex-grow-1">
+                <strong>Retrain disarankan — ambang batas terpenuhi:</strong>
+                <ul class="mb-2 mt-1">
+                    {% for a in retrain_alasan %}<li>{{ a }}</li>{% endfor %}
+                </ul>
+                {% if session.get('role') == 'admin' %}
+                <form method="POST" action="{{ url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0) }}" class="d-inline">
+                    <input type="hidden" name="action" value="retrain">
+                    <button type="submit" class="btn btn-warning btn-sm fw-semibold">
+                        <i class="bi bi-arrow-repeat me-1"></i> Retrain Model Sekarang
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-success border-success d-flex align-items-center gap-2 mb-0 small">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <span>Model dalam kondisi baik — semua ambang batas retrain (data baru &ge;10%, Silhouette &lt;0.35, drift &ge;10%, umur &gt;90 hari) tidak terpenuhi.</span>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="alert alert-info border-info d-flex align-items-center justify-content-between gap-2 mb-0 small">
+            <span><i class="bi bi-info-circle me-1"></i> Belum ada model tersimpan. Model akan <strong>dilatih otomatis</strong> saat Clustering (Langkah 5) dijalankan pertama kali.</span>
+            {% if session.get('role') == 'admin' and has_rfm %}
+            <form method="POST" action="{{ url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0) }}" class="d-inline">
+                <input type="hidden" name="action" value="retrain">
+                <button type="submit" class="btn btn-primary btn-sm fw-semibold" title="Latih model pertama dari data RFM saat ini">
+                    <i class="bi bi-cpu me-1"></i> Latih Model
+                </button>
+            </form>
+            {% endif %}
+        </div>
         {% endif %}
     </div>
 

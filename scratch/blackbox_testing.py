@@ -42,40 +42,47 @@ def main():
     check(3, "Akses tanpa login dialihkan ke login", "/login" in str(r.request.path) or "login" in r.get_data(as_text=True).lower())
 
     # --- TC04-TC06: Halaman utama & role ---
-    r = c.get("/segmentasi/?periode=semua")
+    r = c.get("/segmentasi/")
     html = r.get_data(as_text=True)
     check(4, "Halaman analisis terbuka (admin)", r.status_code == 200 and "LANGKAH 1" in html)
-    check(5, "Kartu status model tampil", "Status Model K-Means" in html)
+    check(5, "Kartu status model tampil di Langkah 5", "Status Model K-Means" in html)
 
     co, _ = client_login("owner", "owner123")
-    h_o = co.get("/segmentasi/?periode=semua").get_data(as_text=True)
+    h_o = co.get("/segmentasi/").get_data(as_text=True)
     check(6, "Owner tidak melihat tombol retrain", "Retrain Model Sekarang" not in h_o and "Latih Model" not in h_o)
 
-    # --- TC07-TC09: Filter periode ---
-    r = c.get("/segmentasi/?periode=30_hari")
-    check(7, "Filter periode 30 hari diterima", r.status_code == 200)
-    r = c.get("/segmentasi/?periode=90_hari")
-    check(8, "Filter periode 90 hari diterima", r.status_code == 200)
-    r = c.get("/segmentasi/?periode=365_hari")
-    check(9, "Filter periode 365 hari diterima", r.status_code == 200)
+    # --- TC07-TC09: Kartu Dataset (semua data, tanpa filter waktu) ---
+    r = c.get("/segmentasi/")
+    html = r.get_data(as_text=True)
+    check(7, "Langkah 1 = kartu Dataset (semua data)",
+          "Semua Data Transaksi" in html and "tanpa filter waktu" in html and "Rentang Tanggal Data" in html)
+
+    check(8, "Form filter periode sudah dihapus", '<select name="periode"' not in html)
+
+    r = c.get("/segmentasi/?periode=30_hari")  # parameter lama diabaikan dengan aman
+    h = r.get_data(as_text=True)
+    check(9, "Parameter lama ?periode diabaikan dengan aman",
+          r.status_code == 200 and "Rentang Tanggal Data" in h)
 
     # --- TC10-TC14: Langkah 1-5 (alur admin) ---
     def post(action):
-        return c.post("/segmentasi/?periode=semua", data={"action": action}, follow_redirects=True)
+        return c.post("/segmentasi/", data={"action": action}, follow_redirects=True)
 
     r = post("hitung_rfm")
     h = r.get_data(as_text=True)
-    check(10, "Langkah 1: Hitung RFM (upsert)", "RFM berhasil" in h and "Tabel Hasil Perhitungan RFM" in h)
+    check(10, "Langkah 2: Hitung RFM (upsert, data utuh)",
+          ("dihitung ulang" in h or "berhasil dihitung" in h) and "Tabel Hasil Perhitungan RFM" in h)
 
     r = post("jalankan_elbow")
     h = r.get_data(as_text=True)
-    check(11, "Langkah 4: Elbow Method dijalankan", "Elbow Method berhasil" in h and "elbowChart" in h)
+    check(11, "Langkah 4: Grafik Elbow ditampilkan (jujur)", "Grafik Elbow Method ditampilkan" in h and "elbowChart" in h)
 
     r = post("jalankan_kmeans")
     h = r.get_data(as_text=True)
-    check(12, "Langkah 5: Clustering K-Means dijalankan", "berhasil diselesaikan" in h and "Tabel Klasifikasi Segmentasi Pelanggan" in h)
+    check(12, "Langkah 5: Clustering K-Means dijalankan",
+          "Clustering K-Means selesai" in h and "Tabel Klasifikasi Segmentasi Pelanggan" in h)
 
-    h = c.get("/segmentasi/?periode=semua").get_data(as_text=True)
+    h = c.get("/segmentasi/").get_data(as_text=True)
     check(13, "Normalisasi (Langkah 3) memakai skala model", "Skala dari model aktif" in h)
     check(14, "Tabel riwayat snapshot & migrasi segmen tampil", "Riwayat Snapshot" in h and "Migrasi Segmen" in h)
 
@@ -97,13 +104,19 @@ def main():
         check(i, f"Halaman {path} terbuka", rr.status_code == 200)
 
     # --- TC21: Owner akses halaman analisis (baca saja) ---
-    r = co.get("/segmentasi/?periode=semua")
+    r = co.get("/segmentasi/")
     check(21, "Owner dapat melihat halaman analisis", r.status_code == 200)
 
     # --- TC22: Owner ditolak aksi admin ---
-    r = co.post("/segmentasi/?periode=semua", data={"action": "retrain"}, follow_redirects=True)
+    r = co.post("/segmentasi/", data={"action": "retrain"}, follow_redirects=True)
     h = r.get_data(as_text=True)
     check(22, "Owner ditolak aksi retrain", "Hanya Operator" in h)
+
+    # --- TC23: Auto-rescore — Hitung RFM tidak menghapus hasil segmentasi ---
+    r = post("hitung_rfm")
+    h = r.get_data(as_text=True)
+    check(23, "Hitung RFM: hasil segmentasi TIDAK hilang (auto-rescore)",
+          "di-skoring ulang dengan Model v" in h and "Tabel Klasifikasi Segmentasi Pelanggan" in h)
 
     # --- Ringkasan ---
     lulus = sum(1 for x in HASIL if x[2] == "LULUS")

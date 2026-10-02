@@ -7,7 +7,7 @@ from utils.core_ml import (
     calculate_elbow_method, fit_model, score_with_model, check_retrain
 )
 from utils.model_store import save_model, load_active_model, model_info_dict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 segmentasi_bp = Blueprint('segmentasi', __name__, url_prefix='/segmentasi')
 
@@ -30,27 +30,28 @@ def _simpan_snapshot(rfm_results, model_versi):
 @segmentasi_bp.route('/', methods=['GET', 'POST'])
 @login_required(roles=['admin', 'owner'])
 def analisis():
-    # 1. Parameter Filter Periode Data (LANGKAH 1)
-    periode = request.args.get('periode', 'semua')
+    # 1. Dataset (LANGKAH 1) — sistem memakai SEMUA data, tanpa filter waktu
     show_elbow = request.args.get('show_elbow', '0') == '1'
-    
-    # Base Query Transaksi & Pelanggan
-    tx_query = Transaksi.query
-    if periode == '30_hari':
-        tgl_mulai = datetime.now().date() - timedelta(days=30)
-        tx_query = tx_query.filter(Transaksi.tanggal_transaksi >= tgl_mulai)
-    elif periode == '90_hari':
-        tgl_mulai = datetime.now().date() - timedelta(days=90)
-        tx_query = tx_query.filter(Transaksi.tanggal_transaksi >= tgl_mulai)
-    elif periode == '365_hari':
-        tgl_mulai = datetime.now().date() - timedelta(days=365)
-        tx_query = tx_query.filter(Transaksi.tanggal_transaksi >= tgl_mulai)
 
-    transaksi_db = tx_query.all()
+    transaksi_db = Transaksi.query.all()
     pelanggan_db = Pelanggan.query.order_by(Pelanggan.nama_pelanggan).all()
 
     total_p = len(pelanggan_db)
     total_t = len(transaksi_db)
+
+    # Rentang tanggal data (untuk kartu Dataset di Langkah 1)
+    BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+    def _tanggal_indo(d):
+        return f'{d.day} {BULAN_ID[d.month - 1]} {d.year}'
+
+    if transaksi_db:
+        tgl_min = min(t.tanggal_transaksi for t in transaksi_db)
+        tgl_max = max(t.tanggal_transaksi for t in transaksi_db)
+        rentang_tanggal = f'{_tanggal_indo(tgl_min)} \u2013 {_tanggal_indo(tgl_max)}'
+    else:
+        rentang_tanggal = '-'
 
     # Status Acuan Tanggal
     tanggal_analisis = datetime.now().date()
@@ -62,11 +63,15 @@ def analisis():
         if action == 'hitung_rfm':
             if session.get('role') != 'admin':
                 flash('Hanya Operator yang dapat menghitung nilai RFM.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
+            # Guard: cegah data RFM lama tertimpa oleh data kosong
             if total_p == 0:
-                flash('Data pelanggan kosong.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                flash('Data pelanggan kosong \u2014 Hitung RFM dibatalkan.', 'danger')
+                return redirect(url_for('segmentasi.analisis'))
+            if total_t == 0:
+                flash('Data transaksi kosong \u2014 Hitung RFM dibatalkan agar data RFM lama tidak tertimpa.', 'warning')
+                return redirect(url_for('segmentasi.analisis'))
 
             try:
                 pelanggan_list = [{'id': p.id, 'nama_pelanggan': p.nama_pelanggan} for p in pelanggan_db]
@@ -81,6 +86,7 @@ def analisis():
                 # Upsert: perbarui baris yang ada, tambahkan yang baru.
                 # TIDAK menghapus seluruh hasil lama agar riwayat & model tetap valid.
                 existing = {r.pelanggan_id: r for r in SegmentasiHasil.query.all()}
+                pairs = []
                 for item in rfm_results:
                     rec = existing.get(item['id'])
                     if rec:
@@ -90,7 +96,7 @@ def analisis():
                         rec.score_rfm = item['score_rfm']
                         rec.tanggal_perhitungan = datetime.utcnow()
                     else:
-                        db.session.add(SegmentasiHasil(
+                        rec = SegmentasiHasil(
                             pelanggan_id=item['id'],
                             recency=item['recency'],
                             frequency=item['frequency'],
@@ -99,15 +105,35 @@ def analisis():
                             cluster=-1,
                             segmentasi='Belum Dicluster',
                             tanggal_perhitungan=datetime.utcnow(),
-                        ))
-                # Data RFM berubah -> label cluster lama tidak berlaku, wajib skoring ulang
-                SegmentasiHasil.query.update({
-                    SegmentasiHasil.cluster: -1,
-                    SegmentasiHasil.segmentasi: 'Belum Dicluster',
-                })
-                db.session.commit()
-                flash('Perhitungan RFM berhasil dilakukan & disimpan!', 'success')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                        )
+                        db.session.add(rec)
+                        existing[item['id']] = rec
+                    pairs.append((item, rec))
+
+                # Auto-rescore: bila sudah ada model, langsung skoring ulang
+                # sehingga hasil segmentasi tidak pernah mendadak kosong.
+                artifact, model_row = load_active_model()
+                if artifact is not None:
+                    score_with_model(rfm_results, artifact)
+                    for item, rec in pairs:
+                        rec.cluster = item['cluster']
+                        rec.segmentasi = item['segmentasi']
+                    _simpan_snapshot(rfm_results, model_row.versi)
+                    db.session.commit()
+                    flash(
+                        f'RFM dihitung ulang dari {total_t} transaksi & '
+                        f'{len(rfm_results)} pelanggan langsung di-skoring ulang dengan Model v{model_row.versi}.',
+                        'success',
+                    )
+                else:
+                    # Belum ada model -> label lama tidak berlaku, wajib clustering ulang
+                    for item, rec in pairs:
+                        rec.cluster = -1
+                        rec.segmentasi = 'Belum Dicluster'
+                    db.session.commit()
+                    flash('RFM berhasil dihitung. Belum ada model \u2014 jalankan Clustering (Langkah 5) untuk membentuk segmen.', 'warning')
+
+                return redirect(url_for('segmentasi.analisis'))
 
             except Exception as e:
                 db.session.rollback()
@@ -115,26 +141,26 @@ def analisis():
 
         elif action == 'jalankan_elbow':
             if session.get('role') != 'admin':
-                flash('Hanya Operator yang dapat menjalankan Elbow Method.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                flash('Hanya Operator yang dapat menampilkan hasil Elbow Method.', 'danger')
+                return redirect(url_for('segmentasi.analisis'))
 
             rfm_db = SegmentasiHasil.query.all()
             if not rfm_db:
                 flash('Data RFM belum dihitung.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
-            flash('Perhitungan Elbow Method berhasil dijalankan!', 'success')
-            return redirect(url_for('segmentasi.analisis', periode=periode, show_elbow=1))
+            flash('Grafik Elbow Method ditampilkan.', 'success')
+            return redirect(url_for('segmentasi.analisis', show_elbow=1))
 
         elif action == 'jalankan_kmeans':
             if session.get('role') != 'admin':
                 flash('Hanya Operator yang dapat memproses clustering.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
             rfm_db = SegmentasiHasil.query.all()
             if not rfm_db:
                 flash('Data RFM belum dihitung.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
             try:
                 rfm_list = [{
@@ -151,10 +177,10 @@ def analisis():
                 if artifact is None:
                     artifact = fit_model(rfm_list, alasan='pertama_kali')
                     versi, _ = save_model(artifact, alasan='pertama_kali')
-                    flash(f'Model pertama (v{versi}) berhasil dilatih & disimpan!', 'success')
+                    keterangan = f'Model pertama (v{versi}) dilatih & disimpan'
                 else:
                     versi = model_row.versi
-                    flash('Pelanggan berhasil di-skoring menggunakan model tersimpan!', 'success')
+                    keterangan = f'{len(rfm_list)} pelanggan di-skoring dengan Model v{versi}'
 
                 clustered_results = score_with_model(rfm_list, artifact)
 
@@ -167,8 +193,10 @@ def analisis():
 
                 _simpan_snapshot(clustered_results, versi)
                 db.session.commit()
-                flash('Proses Clustering K-Means berhasil diselesaikan!', 'success')
-                return redirect(url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0))
+
+                sil = artifact.get('metrics', {}).get('silhouette', 0.0)
+                flash(f'Clustering K-Means selesai \u2014 {keterangan} (Silhouette: {sil:.3f}).', 'success')
+                return redirect(url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0))
 
             except Exception as e:
                 db.session.rollback()
@@ -177,12 +205,12 @@ def analisis():
         elif action == 'retrain':
             if session.get('role') != 'admin':
                 flash('Hanya Operator yang dapat melakukan retrain model.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
             rfm_db = SegmentasiHasil.query.all()
             if not rfm_db:
                 flash('Data RFM belum dihitung.', 'danger')
-                return redirect(url_for('segmentasi.analisis', periode=periode))
+                return redirect(url_for('segmentasi.analisis'))
 
             try:
                 rfm_list = [{
@@ -215,7 +243,7 @@ def analisis():
 
                 sil = artifact.get('metrics', {}).get('silhouette', 0.0)
                 flash(f'Model v{versi} berhasil dilatih ulang (Silhouette: {sil:.4f}, alasan: {alasan_simpan})!', 'success')
-                return redirect(url_for('segmentasi.analisis', periode=periode, show_elbow=1 if show_elbow else 0))
+                return redirect(url_for('segmentasi.analisis', show_elbow=1 if show_elbow else 0))
 
             except Exception as e:
                 db.session.rollback()
@@ -375,8 +403,8 @@ def analisis():
 
     return render_template(
         'segmentasi/analisis.html',
-        periode=periode,
         show_elbow=show_elbow,
+        rentang_tanggal=rentang_tanggal,
         total_p=total_p,
         total_t=total_t,
         has_rfm=has_rfm,
